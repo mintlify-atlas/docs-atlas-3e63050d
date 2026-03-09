@@ -1,0 +1,592 @@
+---
+title: Navigation Guide
+description: Master the P.FLEX application interface and navigation patterns
+icon: "compass"
+---
+
+## Application Layout
+
+P.FLEX uses a modern sidebar-based navigation system that adapts to your role and context.
+
+<Frame>
+  <img src="/images/navigation-overview.png" alt="P.FLEX Navigation" />
+</Frame>
+
+### Main Components
+
+<CardGroup cols={3}>
+  <Card title="Sidebar" icon="sidebar">
+    Primary navigation with collapsible menu
+  </Card>
+  <Card title="Header" icon="window-maximize">
+    Context info and quick actions
+  </Card>
+  <Card title="Main Area" icon="table-cells-large">
+    Working space for current module
+  </Card>
+</CardGroup>
+
+## Sidebar Navigation
+
+The sidebar is your primary navigation tool, featuring a collapsible design for maximum workspace.
+
+### Sidebar Structure
+
+```typescript
+// From sidebar.component.ts:23-95
+<aside class="h-full flex flex-col p-4 gap-4"
+       [class.w-80]="!state.isSidebarCollapsed()"
+       [class.w-24]="state.isSidebarCollapsed()">
+  
+  <!-- HEADER & USER SECTION -->
+  <div class="tech-layer rounded-2xl flex flex-col gap-4">
+    <!-- Logo Row -->
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="h-8 w-8 bg-gradient-to-br from-blue-600 to-blue-800"
+             (click)="state.toggleSidebar()">
+          <span class="font-bold text-white">P</span>
+          <div class="w-2 h-2 bg-green-400 rounded-full"></div>
+        </div>
+        @if (!state.isSidebarCollapsed()) {
+          <h1 class="text-lg font-bold">P.FLEX</h1>
+          <span class="text-[9px]">Label Peru S.A.C.</span>
+        }
+      </div>
+      <button (click)="state.toggleSidebar()">
+        <span>{{ state.isSidebarCollapsed() ? 
+          'keyboard_double_arrow_right' : 'keyboard_double_arrow_left' }}</span>
+      </button>
+    </div>
+    
+    <!-- User Profile -->
+    <!-- Context Switcher -->
+  </div>
+  
+  <!-- NAVIGATION SECTION -->
+  <!-- FOOTER / SYNC STATUS -->
+</aside>
+```
+
+### Toggle Sidebar
+
+<Tabs>
+  <Tab title="Expanded (Default)">
+    **Width**: 320px (80rem)
+    
+    Shows:
+    - ✅ Full menu labels
+    - ✅ User name and shift
+    - ✅ Submenus
+    - ✅ Badges and indicators
+    - ✅ Connection details
+  </Tab>
+  <Tab title="Collapsed">
+    **Width**: 96px (24rem)
+    
+    Shows:
+    - ✅ Icons only
+    - ✅ User initials
+    - ✅ Badge dots
+    - ✅ Tooltips on hover
+  </Tab>
+</Tabs>
+
+<Info>
+  **Keyboard Shortcut**: Click the P.FLEX logo or use the double arrow button to toggle sidebar width.
+</Info>
+
+### User Profile Section
+
+```typescript
+// From sidebar.component.ts:60-78
+<div class="flex items-center gap-3 bg-white/5 p-2 rounded-xl">
+  <div class="h-10 w-10 rounded-lg bg-gradient-to-tr from-gray-700 to-gray-600">
+    <span class="text-sm">{{ getInitials(state.userName()) }}</span>
+  </div>
+  
+  @if (!state.isSidebarCollapsed()) {
+    <div class="flex flex-col">
+      <span class="text-sm font-semibold text-white">{{ state.userName() }}</span>
+      <div class="flex items-center gap-1.5">
+        <div class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-glow-secondary"></div>
+        <span class="text-[10px] text-emerald-400">{{ state.currentShift() || 'Sin Turno' }}</span>
+      </div>
+    </div>
+  }
+</div>
+```
+
+Displays:
+- **User initials** in colored circle
+- **Full name** (when expanded)
+- **Current shift** with status indicator
+- **Active status** (green pulse)
+
+### Context Switcher
+
+```typescript
+// From sidebar.component.ts:80-94
+<div class="relative group cursor-pointer" (click)="goToModeSelector()">
+  <div class="bg-black/20 border border-white/10 rounded-lg flex items-center">
+    <span class="material-icons text-gray-500">domain</span>
+    @if (!state.isSidebarCollapsed()) {
+      <input class="bg-transparent border-none text-xs placeholder-gray-600" 
+             placeholder="CAMBIAR ENTORNO..." 
+             type="text" 
+             readonly/>
+    }
+  </div>
+</div>
+```
+
+<Note>
+  Click **"CAMBIAR ENTORNO"** to return to the mode selector and switch between Operator and Manager interfaces.
+</Note>
+
+## Menu Structure
+
+### Main Menu Items
+
+```typescript
+// From sidebar.component.ts:422-445
+private readonly baseMenuItems: MenuItem[] = [
+  { label: 'DASHBOARD', icon: 'dashboard', route: '/dashboard' },
+  { label: 'OTS', icon: 'assignment', route: '/ots', badge: '3' },
+  { label: 'PROGRAMACIÓN', icon: 'calendar_month', route: '/schedule' },
+  { 
+    label: 'REPORTES', 
+    icon: 'precision_manufacturing', 
+    route: '/reports',
+    children: [
+      { label: 'IMPRESIÓN', route: '/reports/print' },
+      { label: 'TROQUELADO', route: '/reports/diecut' },
+      { label: 'REBOBINADO', route: '/reports/rewind' },
+      { label: 'EMPAQUETADO', route: '/reports/packaging' }
+    ]
+  },
+  {
+    label: 'INVENTARIO', 
+    icon: 'inventory_2', 
+    route: '/inventory',
+    children: [
+      { label: 'LAYOUT / MAPA', route: '/inventory/layout' },
+      { label: 'CLISÉS', route: '/inventory/clise' },
+      { label: 'TROQUELES', route: '/inventory/die' },
+      { label: 'PRODUCTO TERMINADO', route: '/inventory/stock' },
+      { label: 'TINTAS', route: '/inventory/ink' }
+    ]
+  }
+];
+```
+
+<AccordionGroup>
+  <Accordion title="Dashboard" icon="gauge">
+    **Route**: `/dashboard`
+    
+    Your main control center showing:
+    - Production KPIs
+    - Real-time metrics
+    - Active OTs
+    - Machine status
+    - Recent activity
+  </Accordion>
+  
+  <Accordion title="OTS (Work Orders)" icon="assignment">
+    **Route**: `/ots`
+    
+    **Badge**: Shows count of pending OTs
+    
+    Manage production orders:
+    - View all work orders
+    - Filter by status/machine
+    - Assign to operators
+    - Track progress
+  </Accordion>
+  
+  <Accordion title="Programación (Schedule)" icon="calendar">
+    **Route**: `/schedule`
+    
+    Production planning:
+    - Weekly schedule view
+    - Machine assignments
+    - Capacity planning
+    - Shift distribution
+  </Accordion>
+  
+  <Accordion title="Reportes (Reports)" icon="chart-line">
+    **Route**: `/reports/*`
+    
+    **Expandable submenu** with 4 station types:
+    - Impresión (Printing)
+    - Troquelado (Die-cutting)
+    - Rebobinado (Rewinding)
+    - Empaquetado (Packaging)
+    
+    ```typescript
+    // Submenu handling from sidebar.component.ts:396-412
+    handleItemClick(item: MenuItem) {
+      if (item.children) {
+        this.toggleSubmenu(item.label);
+      }
+    }
+    
+    toggleSubmenu(label: string) {
+      if (this.state.isSidebarCollapsed()) {
+        this.state.toggleSidebar(); // Auto-expand for submenus
+      }
+      
+      if (this.expandedMenus.includes(label)) {
+        this.expandedMenus = this.expandedMenus.filter(l => l !== label);
+      } else {
+        this.expandedMenus.push(label);
+      }
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Inventario (Inventory)" icon="warehouse">
+    **Route**: `/inventory/*`
+    
+    **Expandable submenu** for inventory management:
+    - **Layout / Mapa**: Warehouse visualization
+    - **Clisés**: Printing plates inventory
+    - **Troqueles**: Die inventory
+    - **Producto Terminado**: Finished goods stock
+    - **Tintas**: Ink inventory
+  </Accordion>
+</AccordionGroup>
+
+### Management Menu Items
+
+```typescript
+// From sidebar.component.ts:447-451
+private readonly managementItems: MenuItem[] = [
+  { label: 'INCIDENCIAS', icon: 'warning', route: '/incidents' },
+  { label: 'INDICADORES', icon: 'analytics', route: '/reports' },
+  { label: 'AUDITORÍA', icon: 'verified_user', route: '/audit' }
+];
+```
+
+<CardGroup cols={3}>
+  <Card title="Incidencias" icon="triangle-exclamation">
+    **Quality & Issues**
+    
+    Badge shows active incidents count
+  </Card>
+  <Card title="Indicadores" icon="chart-simple">
+    **Analytics**
+    
+    Performance indicators and trends
+  </Card>
+  <Card title="Auditoría" icon="shield-check">
+    **Audit Trail**
+    
+    System activity logs
+  </Card>
+</CardGroup>
+
+### Configuration
+
+```typescript
+// From sidebar.component.ts:128-136
+<a routerLink="/admin" 
+   class="flex items-center px-3 py-2.5 rounded-xl hover:bg-white/5">
+  <span class="material-icons icon-glow">settings</span>
+  @if (!state.isSidebarCollapsed()) {
+    <span class="text-sm font-medium">Configuración</span>
+  }
+</a>
+```
+
+Access system settings (admin only):
+- User management
+- Role definitions
+- Machine configuration
+- System preferences
+
+## Active Route Highlighting
+
+```typescript
+// From sidebar.component.ts:190-203
+<a [routerLink]="item.route"
+   routerLinkActive="tech-item-active"
+   #rla="routerLinkActive"
+   [ngClass]="{
+     'text-gray-400': !rla.isActive,
+     'hover:text-white': !rla.isActive,
+     'hover:bg-white/5': !rla.isActive
+   }">
+  <span class="material-icons"
+        [class.text-blue-200]="rla.isActive"
+        [class.opacity-70]="!rla.isActive">
+    {{ item.icon }}
+  </span>
+  <span [class.text-white]="rla.isActive"
+        [class.font-semibold]="rla.isActive">
+    {{ item.label }}
+  </span>
+</a>
+```
+
+Active routes are highlighted with:
+- 🔵 **Blue gradient background**
+- ✨ **Glowing border effect**
+- 📍 **White dot indicator**
+- 💪 **Bold text**
+
+## Connection Status Footer
+
+```typescript
+// From sidebar.component.ts:140-183
+<div class="tech-layer rounded-2xl p-4 bg-gradient-to-r from-emerald-900/20">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="h-8 w-8 rounded-lg"
+           [ngClass]="isOnline() ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10'">
+        <span class="material-icons"
+              [ngClass]="isOnline() ? 'text-emerald-400' : 'text-red-400'">
+          {{ isOnline() ? 'wifi' : 'wifi_off' }}
+        </span>
+        @if (isOnline()) {
+          <span class="animate-ping bg-emerald-400"></span>
+        }
+      </div>
+      
+      @if (!state.isSidebarCollapsed()) {
+        <div class="flex flex-col">
+          <span class="text-xs font-bold"
+                [ngClass]="isOnline() ? 'text-white' : 'text-red-400'">
+            {{ isOnline() ? 'ONLINE' : 'OFFLINE' }}
+          </span>
+          <span class="text-[10px] text-gray-400">
+            {{ isOnline() ? 'Conexión estable' : 'Sin red detectada' }}
+          </span>
+        </div>
+      }
+    </div>
+    
+    @if (!state.isSidebarCollapsed() && isOnline()) {
+      <div class="flex flex-col items-end">
+        <span class="text-[9px] text-gray-500">Latency</span>
+        <span class="text-xs font-mono"
+              [ngClass]="latency() < 100 ? 'text-emerald-400' : 
+                        (latency() < 300 ? 'text-yellow-400' : 'text-red-400')">
+          {{ latency() }}ms
+        </span>
+      </div>
+    }
+  </div>
+</div>
+```
+
+### Connection Monitoring
+
+<Tabs>
+  <Tab title="Online">
+    ✅ **Green indicator** with pulse animation
+    
+    Shows:
+    - "ONLINE" status
+    - "Conexión estable" message
+    - Real-time latency (ms)
+    
+    Latency colors:
+    - 🟢 < 100ms: Green (excellent)
+    - 🟡 100-300ms: Yellow (acceptable)
+    - 🔴 > 300ms: Red (poor)
+  </Tab>
+  <Tab title="Offline">
+    🔴 **Red indicator** (no animation)
+    
+    Shows:
+    - "OFFLINE" status
+    - "Sin red detectada" message
+    
+    ```typescript
+    // From sidebar.component.ts:355-374
+    ngOnInit() {
+      this.isOnline.set(navigator.onLine);
+      window.addEventListener('online', this.updateStatus);
+      window.addEventListener('offline', this.updateStatus);
+      
+      this.measureLatency();
+      this.intervalId = setInterval(() => this.measureLatency(), 5000);
+    }
+    
+    updateStatus = () => {
+      this.isOnline.set(navigator.onLine);
+      if (navigator.onLine) this.measureLatency();
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Operator Mode Navigation
+
+Operators see a different interface after login:
+
+### Mode Selector
+
+```typescript
+// From mode-selector.component.ts:77-163
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+  <!-- IMPRESIÓN -->
+  <div (click)="navigateTo('print')" class="group relative h-[460px] glass-card">
+    <span class="px-2 py-1 rounded bg-blue-500/20 text-blue-300">ST-01</span>
+    <div class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+    <div class="mb-6 w-20 h-20 rounded-2xl">
+      <span class="material-symbols-outlined text-blue-200 text-4xl">print</span>
+    </div>
+    <h3>Impresión</h3>
+  </div>
+  
+  <!-- TROQUELADO -->
+  <div (click)="navigateTo('diecut')">
+    <span>ST-02</span>
+    <span class="material-symbols-outlined">content_cut</span>
+    <h3>Troquelado</h3>
+  </div>
+  
+  <!-- REBOBINADO -->
+  <div (click)="navigateTo('rewind')">
+    <span>ST-03</span>
+    <span class="material-symbols-outlined">sync</span>
+    <h3>Rebobinado</h3>
+  </div>
+  
+  <!-- EMPAQUETADO -->
+  <div (click)="navigateTo('packaging')">
+    <span>ST-04</span>
+    <span class="material-symbols-outlined">inventory_2</span>
+    <h3>Empaquetado</h3>
+  </div>
+</div>
+```
+
+<Steps>
+  <Step title="Station Selection">
+    Choose from 4 workstation types (ST-01 through ST-04)
+  </Step>
+  <Step title="Machine Selection">
+    Pick specific machine from your station type
+  </Step>
+  <Step title="Production Form">
+    Fill out production report for selected machine
+  </Step>
+</Steps>
+
+### Admin Access from Operator Mode
+
+```typescript
+// From mode-selector.component.ts:186-198
+<div class="fixed bottom-8 right-8 z-50">
+  <button (click)="goToManager()" 
+          class="flex items-center gap-3 px-8 py-4 rounded-xl glass-button">
+    <span class="material-symbols-outlined text-2xl text-blue-300">settings</span>
+    <div class="flex flex-col items-start">
+      <span class="text-[10px] text-blue-300">PANEL ADMIN</span>
+      <span class="font-bold text-sm text-white">GESTIÓN DE PRODUCCIÓN</span>
+    </div>
+  </button>
+</div>
+```
+
+Supervisors and managers can access the admin panel from operator mode via the floating button.
+
+## Keyboard Shortcuts
+
+<CardGroup cols={2}>
+  <Card title="Toggle Sidebar" icon="keyboard">
+    Click P.FLEX logo or arrow button
+  </Card>
+  <Card title="Return to Mode Selector" icon="arrow-left">
+    Click "CAMBIAR ENTORNO" in sidebar
+  </Card>
+  <Card title="Logout" icon="right-from-bracket">
+    Click back arrow in operator header
+  </Card>
+</CardGroup>
+
+## Navigation Best Practices
+
+<Steps>
+  <Step title="Use Breadcrumbs">
+    Monitor your current location in the application hierarchy
+  </Step>
+  
+  <Step title="Check Connection Status">
+    Always verify online/offline status in sidebar footer before critical operations
+  </Step>
+  
+  <Step title="Collapse Sidebar for Focus">
+    When filling forms or viewing reports, collapse sidebar for more workspace
+  </Step>
+  
+  <Step title="Watch for Badges">
+    Red badges indicate items requiring attention (OTs, incidents)
+  </Step>
+  
+  <Step title="Use Context Switcher">
+    Quickly switch between operator and manager modes without logging out
+  </Step>
+</Steps>
+
+## Mobile & Responsive Navigation
+
+<Warning>
+  P.FLEX is optimized for desktop/tablet use. Mobile screens (< 768px) have limited functionality.
+</Warning>
+
+On smaller screens:
+- Sidebar auto-collapses
+- Touch-optimized buttons
+- Simplified layouts
+- Essential features only
+
+## Troubleshooting Navigation
+
+<AccordionGroup>
+  <Accordion title="Sidebar won't expand/collapse">
+    - Refresh the page
+    - Check browser console for errors
+    - Clear browser cache
+    - Try different browser
+  </Accordion>
+  
+  <Accordion title="Menu items not visible">
+    - Verify your user role has access
+    - Check if you're in correct mode (Operator vs Manager)
+    - Contact admin to review permissions
+  </Accordion>
+  
+  <Accordion title="Submenus won't open">
+    - Ensure sidebar is expanded (not collapsed)
+    - Click parent item (not just icon)
+    - Check if submenu has items for your role
+  </Accordion>
+  
+  <Accordion title="Connection status stuck">
+    - Check actual network connection
+    - Refresh browser
+    - Wait 5 seconds for next latency check
+    - Review sync center logs
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Dashboard Overview" icon="chart-line" href="/dashboard/overview">
+    Learn about the main dashboard
+  </Card>
+  <Card title="Work Orders" icon="list-check" href="/ots/overview">
+    Managing OTs and assignments
+  </Card>
+  <Card title="Reports" icon="file-chart-column" href="/analytics/reports">
+    Creating and viewing reports
+  </Card>
+  <Card title="Inventory" icon="warehouse" href="/inventory/overview">
+    Inventory management system
+  </Card>
+</CardGroup>

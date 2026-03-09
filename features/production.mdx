@@ -1,0 +1,615 @@
+---
+title: 'Production Tracking'
+description: 'Real-time production monitoring with detailed reports for Print, Die-cut, Rewind, and Packaging operations'
+icon: 'industry'
+---
+
+## Overview
+
+The Production Tracking module provides comprehensive monitoring and reporting across all manufacturing stages. Each production area (Print, Die-cut, Rewind, Packaging) has dedicated tracking interfaces with activity logging and tooling status verification.
+
+<CardGroup cols={2}>
+  <Card title="Multi-Stage Tracking" icon="layer-group">
+    Separate interfaces for Print, Die-cut, Rewind, and Packaging operations
+  </Card>
+  <Card title="Activity Breakdown" icon="list-timeline">
+    Detailed time tracking for setup, production runs, and downtime
+  </Card>
+  <Card title="Tooling Status" icon="wrench">
+    Real-time clise and die condition monitoring
+  </Card>
+  <Card title="Production Reports" icon="file-chart-column">
+    Comprehensive reports with operator notes and quality observations
+  </Card>
+</CardGroup>
+
+---
+
+## Production Stages
+
+P.FLEX tracks production across four primary manufacturing stages:
+
+<Tabs>
+  <Tab title="Print (Impresión)">
+    Flexographic and digital printing operations with color management and clisé tracking.
+    
+    **Key Metrics:**
+    - Total meters printed
+    - Average printing speed (m/min)
+    - Clisé condition and usage
+    - Color registration quality
+    - Setup and changeover times
+  </Tab>
+  
+  <Tab title="Die-cut (Troquelado)">
+    Shape cutting and die-cutting operations with die condition monitoring.
+    
+    **Key Metrics:**
+    - Pieces processed
+    - Die wear status
+    - Cut quality measurements
+    - Waste percentage
+    - Die sharpness tracking
+  </Tab>
+  
+  <Tab title="Rewind (Rebobinado)">
+    Slitting and rewinding operations for roll finishing.
+    
+    **Key Metrics:**
+    - Roll count produced
+    - Core diameter consistency
+    - Tension control logs
+    - Defect marking
+    - Roll length verification
+  </Tab>
+  
+  <Tab title="Packaging (Empaque)">
+    Final packaging and quality verification before dispatch.
+    
+    **Key Metrics:**
+    - Units packaged
+    - Packaging material usage
+    - Labeling verification
+    - Palletization count
+    - Dispatch readiness
+  </Tab>
+</Tabs>
+
+---
+
+## Print Production Reports
+
+The print module provides the most comprehensive tracking with activity timeline and tooling status.
+
+### Report Data Model
+
+```typescript
+// Print Report Interface (production-print.component.ts:9-32)
+interface PrintActivity {
+  type: string;        // 'Setup', 'Impresión', 'Parada', etc.
+  startTime: string;   // HH:mm format
+  endTime: string;     // HH:mm format
+  meters: number;      // Meters produced (0 for non-production)
+  duration?: string;   // Calculated duration
+}
+
+interface PrintReport {
+  id: string;
+  date: Date;
+  ot: string;                    // Work order reference
+  client: string;
+  product: string;
+  machine: string;
+  operator: string;
+  shift: string;                 // 'Día - A' or 'Noche - B'
+  activities: PrintActivity[];   // Timeline breakdown
+  totalMeters: number;
+  clise: { 
+    code: string;                // Clisé identifier
+    status: string;              // 'OK', 'Desgaste', 'Dañado'
+  };
+  die: { status: string };
+  observations: string;
+  productionStatus: 'PARCIAL' | 'TOTAL';
+}
+```
+
+### Activity Timeline
+
+Production activities are logged chronologically with start/end times:
+
+```typescript
+// Activity Generation Example (production-print.component.ts:383-388)
+const activities: PrintActivity[] = [
+  { 
+    type: 'Setup', 
+    startTime: '07:00', 
+    endTime: '08:30', 
+    meters: 0 
+  },
+  { 
+    type: 'Impresión', 
+    startTime: '08:30', 
+    endTime: '11:00', 
+    meters: Math.floor(totalMeters * 0.4) 
+  },
+  { 
+    type: 'Parada - Cambio Bobina', 
+    startTime: '11:00', 
+    endTime: '11:15', 
+    meters: 0 
+  },
+  { 
+    type: 'Impresión', 
+    startTime: '11:15', 
+    endTime: '13:00', 
+    meters: Math.floor(totalMeters * 0.6) 
+  }
+];
+```
+
+### Duration Calculation
+
+```typescript
+// Calculate Activity Duration (production-print.component.ts:461-470)
+calculateDuration(start: string, end: string): string {
+  const [h1, m1] = start.split(':').map(Number);
+  const [h2, m2] = end.split(':').map(Number);
+  let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+  if (diff < 0) diff += 24 * 60; // Handle overnight shifts
+  
+  const hours = Math.floor(diff / 60);
+  const mins = diff % 60;
+  return `${hours}h ${mins}m`;
+}
+```
+
+---
+
+## KPI Dashboard
+
+Each production module displays aggregated performance metrics.
+
+### Print KPIs
+
+```typescript
+// KPI Calculations (production-print.component.ts:427-438)
+get kpis() {
+  const totalMeters = this.reports.reduce((acc, r) => acc + r.totalMeters, 0);
+  const totalHours = this.reports.length * 6; // Mock avg hours
+  const avgSpeed = totalHours > 0 ? (totalMeters / (totalHours * 60)) : 0;
+  
+  return {
+    totalMeters,
+    avgSpeed: avgSpeed * 5,  // Scaling for realistic m/min
+    completedOts: this.reports.filter(r => 
+      r.productionStatus === 'TOTAL'
+    ).length,
+    toolingIssues: this.reports.filter(r => 
+      r.die.status !== 'OK' || r.clise.status !== 'OK'
+    ).length
+  };
+}
+```
+
+### KPI Display
+
+```typescript
+// KPI Cards UI (production-print.component.ts:68-118)
+<div class="grid grid-cols-4 gap-6 mb-8">
+  <!-- Total Meters -->
+  <div class="glass-card p-5 rounded-2xl">
+    <p class="text-[10px] text-blue-400 font-bold uppercase">
+      <span class="material-icons text-sm">straighten</span> Total Metros (Mes)
+    </p>
+    <p class="text-3xl font-black text-white">
+      {{ kpis.totalMeters | number }} <span class="text-sm">m</span>
+    </p>
+    <div class="text-xs text-slate-400">+12% vs mes anterior</div>
+  </div>
+  
+  <!-- Average Speed -->
+  <div class="glass-card p-5 rounded-2xl">
+    <p class="text-[10px] text-emerald-400 font-bold uppercase">
+      <span class="material-icons text-sm">speed</span> Velocidad Prom.
+    </p>
+    <p class="text-3xl font-black text-white">
+      {{ kpis.avgSpeed | number:'1.0-0' }} <span class="text-sm">m/min</span>
+    </p>
+    <div class="w-full bg-slate-700/50 h-1.5 rounded-full mt-3">
+      <div class="bg-emerald-500 h-full" style="width: 85%"></div>
+    </div>
+  </div>
+  
+  <!-- Completed OTs -->
+  <div class="glass-card p-5 rounded-2xl">
+    <p class="text-[10px] text-purple-400 font-bold uppercase">
+      <span class="material-icons text-sm">assignment_turned_in</span> OTs Completadas
+    </p>
+    <p class="text-3xl font-black text-white">
+      {{ kpis.completedOts }} <span class="text-sm">ordenes</span>
+    </p>
+  </div>
+  
+  <!-- Tooling Alerts -->
+  <div class="glass-card p-5 rounded-2xl">
+    <p class="text-[10px] text-red-400 font-bold uppercase">
+      <span class="material-icons text-sm">warning</span> Alertas Herramental
+    </p>
+    <p class="text-3xl font-black text-white">
+      {{ kpis.toolingIssues }} <span class="text-sm">casos</span>
+    </p>
+    <p class="text-xs text-red-400/80 bg-red-500/10 inline-block px-2 py-0.5 rounded">
+      Requiere Atención
+    </p>
+  </div>
+</div>
+```
+
+<Note>
+  KPIs are calculated dynamically from the reports array and update in real-time as new reports are added.
+</Note>
+
+---
+
+## Tooling Status Tracking
+
+Critical for quality control, the system tracks condition of clisés (printing plates) and dies.
+
+### Status States
+
+<AccordionGroup>
+  <Accordion title="OK" icon="circle-check">
+    Tooling is in good condition and performing within specifications.
+    
+    **Visual Indicator:** Green badge with checkmark
+  </Accordion>
+  
+  <Accordion title="Desgaste (Wear)" icon="triangle-exclamation">
+    Showing signs of wear but still usable. Schedule replacement soon.
+    
+    **Visual Indicator:** Yellow badge with warning icon
+    
+    **Action Required:** Add to maintenance queue
+  </Accordion>
+  
+  <Accordion title="Dañado (Damaged)" icon="circle-xmark">
+    Damaged and requires immediate replacement or repair.
+    
+    **Visual Indicator:** Red badge with error icon
+    
+    **Action Required:** Remove from production, create maintenance ticket
+  </Accordion>
+</AccordionGroup>
+
+### Tooling Status Logic
+
+```typescript
+// Status Assignment (production-print.component.ts:394-396)
+const dieStatus = index % 5 === 0 ? 'Desgaste' : 
+  (index % 15 === 0 ? 'Dañado' : 'OK');
+const cliseStatus = index % 7 === 0 ? 'Desgaste' : 'OK';
+```
+
+### Status Display
+
+```typescript
+// Status Badge Helper (production-print.component.ts:452-459)
+getStatusClass(status: string) {
+  switch(status) {
+    case 'OK': 
+      return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+    case 'Desgaste': 
+      return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
+    case 'Dañado': 
+      return 'bg-red-500/10 text-red-400 border-red-500/20';
+    default: 
+      return 'bg-slate-500/10 text-slate-400';
+  }
+}
+```
+
+---
+
+## Report Detail Modal
+
+Clicking any report row opens a comprehensive detail view.
+
+### Modal Structure
+
+<CardGroup cols={2}>
+  <Card title="Product Information" icon="box">
+    Client, product description, machine, operator details
+  </Card>
+  <Card title="Tooling Status" icon="hammer">
+    Clisé code, die status, condition indicators
+  </Card>
+  <Card title="Activity Timeline" icon="clock">
+    Full breakdown of setup, production runs, and stoppages
+  </Card>
+  <Card title="Observations" icon="comment">
+    Operator notes and quality remarks
+  </Card>
+</CardGroup>
+
+### Activities Table
+
+```typescript
+// Activity Breakdown Table (production-print.component.ts:277-313)
+<table class="w-full text-sm">
+  <thead class="bg-white/5 text-slate-400">
+    <tr>
+      <th class="px-5 py-3">Actividad</th>
+      <th class="px-5 py-3 text-center">Horario</th>
+      <th class="px-5 py-3 text-center">Duración</th>
+      <th class="px-5 py-3 text-right">Metros</th>
+    </tr>
+  </thead>
+  <tbody class="divide-y divide-white/5">
+    <tr *ngFor="let act of selectedReport.activities">
+      <td class="px-5 py-3 font-medium text-white">
+        <div class="flex items-center gap-2">
+          <div class="w-1.5 h-1.5 rounded-full" 
+            [ngClass]="act.meters > 0 ? 'bg-emerald-500' : 'bg-slate-500'">
+          </div>
+          {{ act.type }}
+        </div>
+      </td>
+      <td class="px-5 py-3 text-center font-mono text-xs">
+        {{ act.startTime }} - {{ act.endTime }}
+      </td>
+      <td class="px-5 py-3 text-center font-mono text-xs text-slate-500">
+        {{ calculateDuration(act.startTime, act.endTime) }}
+      </td>
+      <td class="px-5 py-3 text-right font-mono font-bold" 
+        [class.text-emerald-400]="act.meters > 0">
+        {{ act.meters > 0 ? (act.meters | number) : '-' }}
+      </td>
+    </tr>
+  </tbody>
+  <tfoot class="bg-white/5 border-t border-white/10 font-bold">
+    <tr>
+      <td colspan="3" class="px-5 py-3 text-right text-xs uppercase">
+        Total Producción
+      </td>
+      <td class="px-5 py-3 text-right font-mono">
+        {{ selectedReport.totalMeters | number }}
+      </td>
+    </tr>
+  </tfoot>
+</table>
+```
+
+---
+
+## Production Status Classification
+
+Reports are classified as either PARTIAL or TOTAL production:
+
+```typescript
+// Status Badge (production-print.component.ts:162-169)
+<span class="px-2 py-1 rounded text-[10px] font-bold uppercase"
+  [ngClass]="{
+    'bg-emerald-500/10 text-emerald-400 border-emerald-500/20': 
+      report.productionStatus === 'TOTAL',
+    'bg-amber-500/10 text-amber-400 border-amber-500/20': 
+      report.productionStatus === 'PARCIAL'
+  }">
+  {{ report.productionStatus }}
+</span>
+```
+
+<Tabs>
+  <Tab title="TOTAL Production">
+    **Definition:** Order completed in full during this production run.
+    
+    **Criteria:**
+    - All planned meters/pieces produced
+    - Quality verification passed
+    - Ready for next stage or finished goods
+    
+    **Visual:** Green badge with "TOTAL"
+  </Tab>
+  
+  <Tab title="PARCIAL Production">
+    **Definition:** Partial completion, will continue in next shift/run.
+    
+    **Reasons:**
+    - Shift change mid-production
+    - Machine breakdown
+    - Material shortage
+    - Tooling replacement needed
+    
+    **Visual:** Amber badge with "PARCIAL"
+  </Tab>
+</Tabs>
+
+---
+
+## Report Generation
+
+Reports are generated from active OTs with realistic production data:
+
+```typescript
+// Report Generation Logic (production-print.component.ts:373-415)
+generateReports() {
+  const ots = this.ordersService.ots.slice(0, 20);
+  const machines = this.state.adminMachines()
+    .filter(m => m.type === 'Impresión');
+  const operators = ['Juan Martinez', 'Carlos Ruiz', 'Miguel Torres', 'Ana Lopez'];
+  
+  this.reports = ots.map((ot, index) => {
+    const isComplete = index % 3 !== 0;
+    const totalMeters = Math.floor(Math.random() * 15000) + 2000;
+    
+    const activities: PrintActivity[] = [
+      { type: 'Setup', startTime: '07:00', endTime: '08:30', meters: 0 },
+      { type: 'Impresión', startTime: '08:30', endTime: '11:00', 
+        meters: Math.floor(totalMeters * 0.4) },
+      { type: 'Parada - Cambio Bobina', startTime: '11:00', 
+        endTime: '11:15', meters: 0 },
+      { type: 'Impresión', startTime: '11:15', endTime: '13:00', 
+        meters: Math.floor(totalMeters * 0.6) },
+    ];
+
+    const date = new Date();
+    date.setDate(date.getDate() - (index % 7));
+    date.setHours(7 + (index % 10), 0);
+
+    return {
+      id: `REP-${1000 + index}`,
+      date: date,
+      ot: ot.OT,
+      client: ot['Razon Social'],
+      product: ot.descripcion || ot.impresion || 'Etiqueta Genérica',
+      machine: machines[index % machines.length]?.name || 'Máquina 1',
+      operator: operators[index % operators.length],
+      shift: index % 2 === 0 ? 'Día - A' : 'Noche - B',
+      activities: activities,
+      totalMeters: totalMeters,
+      clise: { 
+        code: `CL-${ot.OT}-01`, 
+        status: index % 7 === 0 ? 'Desgaste' : 'OK' 
+      },
+      die: { 
+        status: index % 5 === 0 ? 'Desgaste' : 
+          (index % 15 === 0 ? 'Dañado' : 'OK') 
+      },
+      observations: index % 4 === 0 ? 
+        'Leve variación de tono en la segunda bobina. Ajuste de presión realizado.' : '',
+      productionStatus: isComplete ? 'TOTAL' : 'PARCIAL'
+    };
+  });
+}
+```
+
+---
+
+## Search and Filtering
+
+Production reports can be searched across multiple fields:
+
+```typescript
+// Search Implementation (production-print.component.ts:417-425)
+get filteredReports() {
+  const term = this.searchTerm.toLowerCase();
+  return this.reports.filter(r => 
+    r.ot.toLowerCase().includes(term) ||
+    r.machine.toLowerCase().includes(term) ||
+    r.operator.toLowerCase().includes(term) ||
+    r.client.toLowerCase().includes(term)
+  );
+}
+```
+
+<Info>
+  Search is performed in real-time as the user types, with no debounce delay for immediate feedback.
+</Info>
+
+---
+
+## Operator Information
+
+Each report tracks the responsible operator with avatar initials:
+
+```typescript
+// Operator Display (production-print.component.ts:152-157)
+<td class="px-6 py-4 text-slate-400 font-medium text-xs">
+  <div class="flex items-center gap-2">
+    <div class="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-white">
+      {{ getInitials(report.operator) }}
+    </div>
+    {{ report.operator }}
+  </div>
+</td>
+
+// Initials Helper (production-print.component.ts:448-450)
+getInitials(name: string) {
+  return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+}
+```
+
+---
+
+## PDF Export
+
+Generate printable PDF reports for documentation and quality records.
+
+```typescript
+// Export Button (production-print.component.ts:61-63)
+<button class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2">
+  <span class="material-icons text-sm">add</span> Nuevo Reporte
+</button>
+```
+
+<Warning>
+  PDF export functionality requires the `jspdf` library. Ensure it's installed in your project dependencies.
+</Warning>
+
+---
+
+## Integration with Other Modules
+
+### Link to OT Management
+
+Production reports reference work orders from the OT module:
+
+```typescript
+// OT Reference (production-print.component.ts:374)
+const ots = this.ordersService.ots.slice(0, 20);
+```
+
+### Link to Machine Registry
+
+Machine assignments pull from the centralized machine registry:
+
+```typescript
+// Machine Data (production-print.component.ts:375-376)
+const machines = this.state.adminMachines()
+  .filter(m => m.type === 'Impresión');
+```
+
+### Link to Inventory (Tooling)
+
+Clisé codes and die status connect to the inventory module for tooling lifecycle tracking.
+
+---
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Accurate Time Logging" icon="clock">
+    Record exact start/end times for all activities to enable precise OEE calculations
+  </Card>
+  
+  <Card title="Tooling Inspections" icon="magnifying-glass">
+    Inspect and update clisé/die status at every setup and changeover
+  </Card>
+  
+  <Card title="Detailed Observations" icon="clipboard">
+    Document any quality issues, adjustments, or anomalies in the observations field
+  </Card>
+  
+  <Card title="Complete Reports" icon="circle-check">
+    Mark production status (TOTAL/PARCIAL) accurately for inventory reconciliation
+  </Card>
+</CardGroup>
+
+---
+
+## Related Modules
+
+<CardGroup cols={2}>
+  <Card title="Order Management" icon="clipboard-list" href="/features/orders">
+    View OT specifications and production requirements
+  </Card>
+  <Card title="Planning & Scheduling" icon="calendar" href="/features/planning">
+    Schedule production runs and assign machines
+  </Card>
+  <Card title="Inventory - Tooling" icon="hammer" href="/features/inventory">
+    Manage clisés, dies, and track tooling lifecycle
+  </Card>
+  <Card title="Quality Control" icon="clipboard-check" href="/features/quality">
+    Report production incidents and quality issues
+  </Card>
+</CardGroup>

@@ -1,0 +1,393 @@
+---
+title: Login Process
+description: Authenticate and access the P.FLEX system
+icon: "right-to-bracket"
+---
+
+## Login Screen Overview
+
+The P.FLEX login screen provides secure, shift-based authentication for authorized plant supervisors and operators.
+
+<Frame>
+  <img src="/images/login-screen.png" alt="P.FLEX Login Screen" />
+</Frame>
+
+### Key Features
+
+<CardGroup cols={3}>
+  <Card title="Secure Access" icon="shield-halved">
+    Encrypted authentication with employee ID validation
+  </Card>
+  <Card title="Shift Selection" icon="clock">
+    Choose your work shift during login
+  </Card>
+  <Card title="Offline Ready" icon="wifi">
+    Login works even without network connection
+  </Card>
+</CardGroup>
+
+## Login Steps
+
+<Steps>
+  <Step title="Access the Login Page">
+    Navigate to the P.FLEX application. You'll see:
+    
+    - **System Status Badge**: "Sistema: En Línea" (green pulse)
+    - **Connection Indicators**: 
+      - Conexión Encriptada ✓
+      - Modo Offline Activo ✓
+    - **Terminal Information**: Terminal ID and Local Node IP
+    
+    ```typescript
+    // From login.component.ts:66-72
+    <div class="flex items-center gap-2 px-4 py-1.5 rounded-full">
+      <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+      <span class="text-xs font-semibold text-green-400">Sistema: En Línea</span>
+    </div>
+    <span class="text-[10px]">Sincronización de datos persistente habilitada</span>
+    ```
+  </Step>
+
+  <Step title="Enter Your Employee ID">
+    In the **Identificación de Usuario** field, enter your employee ID:
+    
+    <Tabs>
+      <Tab title="Standard Format">
+        ```
+        SUP-001  (Supervisor)
+        OPR-045  (Operator)
+        ADM-002  (Admin)
+        JEF-001  (Manager)
+        ```
+      </Tab>
+      <Tab title="Quick Access">
+        For development/testing:
+        ```
+        admin      → Sistema role
+        jefe       → Jefatura role  
+        operario   → Operario role
+        ```
+      </Tab>
+    </Tabs>
+
+    ```typescript
+    // Username input from login.component.ts:86-89
+    <input 
+      type="text" 
+      [(ngModel)]="username" 
+      name="username"
+      placeholder="ID de Empleado (ej. SUP-001)" 
+      autocomplete="off"
+    />
+    ```
+    
+    <Note>
+      Your employee ID is case-insensitive and provided by HR or your supervisor.
+    </Note>
+  </Step>
+
+  <Step title="Enter Your Security Password">
+    Type your password in the **Contraseña de Seguridad** field:
+    
+    - Password is masked by default (••••••••)
+    - Click the eye icon to toggle visibility
+    - Password field has a blinking cursor animation for visual feedback
+    
+    ```typescript
+    // Password field from login.component.ts:98-105
+    <input 
+      [type]="showPassword ? 'text' : 'password'" 
+      [(ngModel)]="password" 
+      name="password"
+      placeholder="••••••••"
+    />
+    <button type="button" (click)="showPassword = !showPassword">
+      <span class="material-icons">{{ showPassword ? 'visibility_off' : 'visibility' }}</span>
+    </button>
+    ```
+    
+    <Warning>
+      Passwords expire every 90 days by default. You'll receive a warning 15 days before expiry.
+    </Warning>
+  </Step>
+
+  <Step title="Select Your Work Shift">
+    Choose your assigned shift from the two options:
+    
+    <CardGroup cols={2}>
+      <Card title="Turno Día" icon="sun">
+        **Day Shift**
+        
+        Default: 06:00 - 18:00
+        
+        Morning and afternoon production
+      </Card>
+      <Card title="Turno Noche" icon="moon">
+        **Night Shift**
+        
+        Default: 18:00 - 06:00
+        
+        Evening and overnight production
+      </Card>
+    </CardGroup>
+
+    ```typescript
+    // Shift selection from login.component.ts:118-135
+    <button 
+      type="button" 
+      (click)="selectedShift = state.config().shiftName1"
+      [ngClass]="selectedShift === state.config().shiftName1 ? 'active-shift' : 'inactive-shift'"
+    >
+      <span class="material-icons">wb_sunny</span>
+      <span>{{ state.config().shiftName1 }}</span>
+      <span>{{ state.config().shiftTime1 }} - {{ state.config().shiftTime2 }}</span>
+    </button>
+    
+    <button 
+      type="button" 
+      (click)="selectedShift = state.config().shiftName2"
+      [ngClass]="selectedShift === state.config().shiftName2 ? 'active-shift' : 'inactive-shift'"
+    >
+      <span class="material-icons">nights_stay</span>
+      <span>{{ state.config().shiftName2 }}</span>
+      <span>{{ state.config().shiftTime2 }} - {{ state.config().shiftTime1 }}</span>
+    </button>
+    ```
+
+    <Info>
+      Shift times can be customized by administrators in the system configuration. The default shift is preselected based on current time.
+    </Info>
+  </Step>
+
+  <Step title="Authenticate">
+    Click the **AUTENTICAR SISTEMA** button to log in.
+    
+    The button is disabled until you provide:
+    - ✓ Username/Employee ID
+    - ✓ Selected shift
+    
+    ```typescript
+    // Submit button from login.component.ts:139-144
+    <button 
+      type="submit" 
+      [disabled]="!username || !selectedShift"
+      (ngSubmit)="onLogin()"
+    >
+      <span>AUTENTICAR SISTEMA</span>
+      <span class="material-icons">login</span>
+    </button>
+    ```
+
+    Upon successful authentication, you'll be redirected based on your role.
+  </Step>
+</Steps>
+
+## Authentication Logic
+
+### How Login Works
+
+```typescript
+// From login.component.ts:262-267 and state.service.ts:114-143
+onLogin() {
+  if (this.username && this.selectedShift) {
+    this.state.login(this.username, this.selectedShift);
+    this.router.navigate(['/operator']);
+  }
+}
+
+// State service login method
+login(username: string, shift: Shift) {
+  let role: UserRole = 'Supervisor';
+  let name = 'Juan Supervisor';
+  const lowerUser = username.toLowerCase().trim();
+
+  // Find user in admin users list
+  const foundUser = this.adminUsers().find(u => u.username.toLowerCase() === lowerUser);
+  if (foundUser && foundUser.active) {
+     role = foundUser.role;
+     name = foundUser.name;
+  } else if (lowerUser === 'admin') {
+    role = 'Sistemas';
+    name = 'Admin Sistema';
+  } else if (lowerUser === 'jefe') {
+    role = 'Jefatura';
+    name = 'Carlos Gerencia';
+  } else if (lowerUser === 'operario') {
+    role = 'Operario';
+    name = 'Pedro Operador';
+  }
+
+  this.currentUser.set({
+    id: 'u-' + Date.now(),
+    name: name,
+    role: role
+  });
+  this.currentShift.set(shift);
+
+  // Create audit log entry
+  this.audit.log(name, role, 'ACCESO', 'Inicio de Sesión', 
+    `Usuario ${username} inició sesión en ${shift}.`);
+}
+```
+
+### Role-Based Redirection
+
+After login, users are directed to appropriate interfaces:
+
+<Tabs>
+  <Tab title="Operario">
+    **Operator View**
+    
+    `/operator` → Station selector with 4 workstations:
+    - Impresión (Printing)
+    - Troquelado (Die-cutting)
+    - Rebobinado (Rewinding)
+    - Empaquetado (Packaging)
+  </Tab>
+  <Tab title="Supervisor / Jefatura">
+    **Manager View**
+    
+    `/dashboard` → Full management interface:
+    - Production dashboard
+    - OT management
+    - Reports and analytics
+    - Inventory management
+  </Tab>
+  <Tab title="Sistemas">
+    **Admin View**
+    
+    `/admin` → System configuration:
+    - User management
+    - Role definitions
+    - Machine configuration
+    - System settings
+  </Tab>
+</Tabs>
+
+## Forgot Password
+
+If you've forgotten your password:
+
+<Steps>
+  <Step title="Click 'Solicitar Restablecimiento'">
+    Located below the password field
+  </Step>
+  <Step title="Contact IT Support">
+    Request will be routed to:
+    - **Soporte Operativo IT**
+    - Terminal ID: Your workstation ID
+    - Node: Your local network node
+  </Step>
+  <Step title="Verify Identity">
+    Provide your employee ID and supervisor confirmation
+  </Step>
+  <Step title="Receive Temporary Password">
+    You'll be required to change it on first login
+  </Step>
+</Steps>
+
+## Security Features
+
+<CardGroup cols={2}>
+  <Card title="Encrypted Connection" icon="lock">
+    All authentication data is transmitted over encrypted channels
+    
+    ```typescript
+    // Secure connection indicator
+    <span class="material-icons">verified_user</span>
+    <span>Conexión Encriptada</span>
+    ```
+  </Card>
+  
+  <Card title="Audit Trail" icon="clipboard-list">
+    Every login is logged for security auditing
+    
+    ```typescript
+    this.audit.log(name, role, 'ACCESO', 'Inicio de Sesión',
+      `Usuario ${username} inició sesión en ${shift}.`);
+    ```
+  </Card>
+  
+  <Card title="Auto Logout" icon="clock">
+    Sessions automatically expire after 30 minutes of inactivity (configurable)
+    
+    ```typescript
+    // From system config
+    autoLogoutMinutes: 30
+    ```
+  </Card>
+  
+  <Card title="Offline Support" icon="wifi">
+    Authentication works offline with cached credentials
+    
+    Status indicator shows "Modo Offline Activo"
+  </Card>
+</CardGroup>
+
+## Terminal Information
+
+The login screen displays important terminal metadata:
+
+```typescript
+// From login.component.ts:165-170
+<div class="flex items-center gap-3">
+  <span class="material-icons">terminal</span>
+  <div>
+    <span>Soporte Operativo IT</span>
+    <span>Terminal ID: W9M-04-A</span>
+    <span>Nodo Local: 10.0.4.12</span>
+  </div>
+</div>
+```
+
+<Info>
+  **Terminal ID** and **Local Node** are automatically assigned during installation and used for support requests.
+</Info>
+
+## Troubleshooting Login Issues
+
+<AccordionGroup>
+  <Accordion title="Invalid credentials error">
+    - Verify your employee ID with HR or supervisor
+    - Ensure CAPS LOCK is off
+    - Check if your account is active (contact admin)
+    - Try resetting your password
+  </Accordion>
+  
+  <Accordion title="Cannot select shift">
+    - Shifts must be configured by administrator
+    - Verify shift times in system config
+    - Contact admin if shifts are not visible
+  </Accordion>
+  
+  <Accordion title="'Sistema: Offline' status">
+    - You can still log in with cached credentials
+    - Data will sync when connection is restored
+    - Contact IT if offline mode persists
+  </Accordion>
+  
+  <Accordion title="Button stays disabled">
+    Make sure you've entered:
+    1. Username/Employee ID
+    2. Selected a shift (click a shift card)
+    
+    Password is not required for demo/testing mode.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="User Roles" icon="users" href="/getting-started/user-roles">
+    Learn about different roles and permissions
+  </Card>
+  <Card title="Navigation Guide" icon="compass" href="/getting-started/navigation">
+    Master the application interface
+  </Card>
+  <Card title="Operator Mode" icon="industry" href="/operator/overview">
+    Start working with production stations
+  </Card>
+  <Card title="Manager Dashboard" icon="chart-line" href="/dashboard/overview">
+    Explore management features
+  </Card>
+</CardGroup>

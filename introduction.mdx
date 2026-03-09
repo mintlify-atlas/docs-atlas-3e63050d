@@ -1,0 +1,162 @@
+---
+title: Introduction
+description: Welcome to P.FLEX - Industrial ERP for flexible packaging manufacturing plants
+---
+
+<img
+  className="block rounded-lg shadow-xl"
+  src="https://lh3.googleusercontent.com/aida-public/AB6AXuC_I2K26LEAIDL40CaaDkYrDMdYzWK6fix6B6EpIhQn40d2IGTUN_9YRJjnn7bqC8Q0qklvZj48-uOC1VML799bLeR_dXhN4siuq-dYXMzzBKSLKy9hO4ydYymT1cy8U6_HEIzU7siOZMJn6dstzIpU2p0zB9Pg2LD6fgZ1Mog4cSZRVFgDFKSVGwVE-ZsgM4BWvm9rOHeFN6RIArFSBU3fibvFD3qsA1OQt_sGfb74nb-fnq_0aYcYsVSAPh0gilW5NPMDJ5xQRwA"
+  alt="P.FLEX Industrial Plant"
+/>
+
+## Welcome to P.FLEX
+
+P.FLEX is a comprehensive **industrial ERP system** designed specifically for flexible packaging manufacturing plants. Built with Angular 19 and modern web technologies, it provides real-time production control, inventory management, and quality assurance for complex printing and die-cutting operations.
+
+<CardGroup cols={2}>
+  <Card title="Real-Time Control" icon="gauge-high">
+    Monitor production status, machine availability, and KPIs with live dashboards that update in real-time across your plant.
+  </Card>
+  <Card title="Offline-First Architecture" icon="cloud-arrow-down">
+    Continue operations even without internet connectivity. All data syncs automatically when connection is restored.
+  </Card>
+  <Card title="Role-Based Access" icon="shield-halved">
+    Secure multi-tier authentication with granular permissions for Operators, Supervisors, Management, and Systems administrators.
+  </Card>
+  <Card title="Complete Traceability" icon="list-check">
+    Full audit trail of all operations with timestamp, user, and IP tracking for compliance and quality control.
+  </Card>
+</CardGroup>
+
+## What Makes P.FLEX Different
+
+P.FLEX is purpose-built for the unique challenges of flexible packaging production:
+
+<Note>
+  Unlike generic ERP systems, P.FLEX understands the complexities of flexographic printing, rotary die-cutting, and multi-stage finishing operations.
+</Note>
+
+### Industry-Specific Features
+
+- **Tooling Management**: Track clichés (printing plates) and dies with location mapping, wear status, and accumulated meters
+- **Multi-Stage Production**: Handle print → die-cut → rewind workflows with material tracking between stages
+- **Shift-Based Operations**: Full support for day/night shifts with operator assignment and handoff protocols
+- **Quality Integration**: CAPA (Corrective and Preventive Actions) system directly linked to production orders
+
+### Technology Stack
+
+```json package.json
+{
+  "name": "p.flex",
+  "dependencies": {
+    "@angular/core": "19.0.0",
+    "@angular/forms": "19.0.0",
+    "@angular/router": "19.0.0",
+    "rxjs": "^7.8.2",
+    "xlsx": "0.18.5",
+    "jspdf": "2.5.1",
+    "d3": "7.9.0",
+    "tailwindcss": "latest"
+  }
+}
+```
+
+<Info>
+  P.FLEX uses **Angular Signals** for reactive state management, providing excellent performance and predictable data flow throughout the application.
+</Info>
+
+## Core System Architecture
+
+The system is organized into feature modules that mirror your plant operations:
+
+```typescript src/app.component.ts
+import { Component, inject } from '@angular/core';
+import { RouterOutlet, Router } from '@angular/router';
+import { SidebarComponent } from './core/layout/sidebar.component';
+import { StateService } from './services/state.service';
+
+@Component({
+  selector: 'app-root',
+  standalone: true,
+  imports: [RouterOutlet, SidebarComponent, CommonModule],
+  template: `
+    <div class="flex h-screen overflow-hidden">
+      @if (state.isLoggedIn() && showSidebar) {
+        <app-sidebar></app-sidebar>
+      }
+      <main class="flex-1 overflow-auto">
+        <router-outlet></router-outlet>
+      </main>
+    </div>
+  `
+})
+export class AppComponent {
+  state = inject(StateService);
+  router = inject(Router);
+  showSidebar = true;
+}
+```
+
+### State Management
+
+P.FLEX uses a centralized state service with Angular signals for reactive updates:
+
+```typescript src/services/state.service.ts
+@Injectable({ providedIn: 'root' })
+export class StateService {
+  // Authentication State
+  readonly currentUser = signal<User | null>(null);
+  readonly currentShift = signal<Shift>(null);
+  
+  // System Configuration
+  readonly config = signal<SystemConfig>({
+    shiftName1: 'Turno Día',
+    shiftTime1: '06:00',
+    shiftName2: 'Turno Noche',
+    shiftTime2: '18:00',
+    passwordExpiryWarningDays: 15,
+    autoLogoutMinutes: 30
+  });
+  
+  // Machine Registry
+  readonly adminMachines = signal<Machine[]>([...]);
+  
+  // Computed Values
+  readonly isLoggedIn = computed(() => !!this.currentUser());
+  readonly userName = computed(() => this.currentUser()?.name || 'Guest');
+}
+```
+
+## Who Uses P.FLEX
+
+P.FLEX is designed for different user roles in your manufacturing operation:
+
+<CardGroup cols={2}>
+  <Card title="Plant Operators" icon="user-gear">
+    Register production, report tooling status, and log quality incidents directly from the shop floor.
+  </Card>
+  <Card title="Shift Supervisors" icon="user-tie">
+    Assign work orders, validate quality, monitor machine status, and manage shift handoffs.
+  </Card>
+  <Card title="Production Management" icon="user-crown">
+    Access real-time KPIs, approve orders, generate reports, and make strategic decisions.
+  </Card>
+  <Card title="IT/Systems Admin" icon="user-shield">
+    Configure system settings, manage users and permissions, and maintain data integrity.
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Install P.FLEX and get your first production line running in minutes
+  </Card>
+  <Card title="Key Features" icon="star" href="/key-features">
+    Explore all 10+ modules and capabilities in detail
+  </Card>
+</CardGroup>
+
+<Info>
+  **Need Help?** Check out our comprehensive guides for each module, or contact your systems administrator for plant-specific configuration details.
+</Info>

@@ -1,0 +1,730 @@
+---
+title: 'InventoryService'
+description: 'Comprehensive inventory management for clichés (clisés), dies (troqueles), and finished goods stock'
+---
+
+## Overview
+
+The `InventoryService` manages three types of inventory:
+
+1. **Clichés (Clisés)** - Printing plates with detailed specifications
+2. **Dies (Troqueles)** - Cutting dies and tooling
+3. **Finished Goods Stock** - Product inventory with quality status
+
+Includes rack layout visualization, Excel import normalization, and automated spatial mapping.
+
+**Location:** `src/features/inventory/services/inventory.service.ts`
+
+**Provider:** Root (singleton)
+
+**Dependencies:** ExcelService, AuditService, StateService
+
+## Properties
+
+### State Accessors
+
+<ResponseField name="cliseItems" type="CliseItem[]">
+  Snapshot of all cliché inventory items.
+</ResponseField>
+
+<ResponseField name="cliseItems$" type="Observable<CliseItem[]>">
+  Observable stream of cliché items for reactive subscriptions.
+</ResponseField>
+
+<ResponseField name="dieItems" type="DieItem[]">
+  Snapshot of all die/tooling inventory items.
+</ResponseField>
+
+<ResponseField name="dieItems$" type="Observable<DieItem[]>">
+  Observable stream of die items for reactive subscriptions.
+</ResponseField>
+
+<ResponseField name="stockItems" type="StockItem[]">
+  Snapshot of finished goods stock with default mock data.
+</ResponseField>
+
+<ResponseField name="stockItems$" type="Observable<StockItem[]>">
+  Observable stream of stock items for reactive subscriptions.
+</ResponseField>
+
+<ResponseField name="layoutData" type="RackConfig[]">
+  Snapshot of physical rack layout configuration with spatial mapping.
+</ResponseField>
+
+<ResponseField name="layoutData$" type="Observable<RackConfig[]>">
+  Observable stream of layout data for reactive visualization.
+</ResponseField>
+
+## Field Mappings
+
+### CLISE_MAPPING
+
+Column name mappings for Excel import normalization:
+
+```typescript
+readonly CLISE_MAPPING = {
+  'item': ['item', 'codigo', 'code', 'id', 'clise'],
+  'ubicacion': ['ubicación', 'ubicacion', 'location'],
+  'descripcion': ['descripción', 'descripcion', 'description'],
+  'cliente': ['cliente', 'client'],
+  'z': ['z', 'dientes'],
+  'ancho': ['ancho', 'width'],
+  'avance': ['avance', 'length'],
+  'ingreso': ['ingreso', 'fecha ingreso'],
+  'mtl_acum': ['mtl acum', 'mtl. acum.', 'metros acumulados']
+};
+```
+
+### DIE_MAPPING
+
+Column name mappings for die imports:
+
+```typescript
+readonly DIE_MAPPING = {
+  'serie': ['serie', 'codigo', 'code', 'id'],
+  'cliente': ['cliente', 'client'],
+  'medida': ['medida', 'dimensiones'],
+  'ubicacion': ['ubicación', 'ubicacion'],
+  'z': ['z', 'dientes'],
+  'material': ['material', 'sustrato'],
+  'forma': ['forma', 'shape'],
+  'estado': ['estado', 'status'],
+  'columnas': ['columnas', 'col', 'cols', 'cavidades', 'cav'],
+  'repeticiones': ['repeticiones', 'rep', 'reps']
+};
+```
+
+### STOCK_MAPPING
+
+Column name mappings for finished goods:
+
+```typescript
+readonly STOCK_MAPPING = {
+  'ot': ['ot', 'orden', 'op', 'nro'],
+  'client': ['cliente', 'razon social', 'customer'],
+  'product': ['producto', 'descripcion', 'item'],
+  'rolls': ['rollos', 'cant rollos', 'qty rolls', 'und', 'cantidad'],
+  'millares': ['millares', 'cant millares', 'mll', 'qty mll'],
+  'location': ['ubicacion', 'ubicación', 'posicion', 'loc'],
+  'status': ['estado', 'status', 'situacion', 'calidad'],
+  'palletId': ['pallet', 'lote', 'pallet id', 'id', 'caja'],
+  'notes': ['notas', 'observaciones', 'obs']
+};
+```
+
+## Methods
+
+### Cliché Management
+
+#### addClises
+
+Adds new clichés to inventory and updates spatial layout.
+
+```typescript
+addClises(items: CliseItem[]): void
+```
+
+<ParamField path="items" type="CliseItem[]" required>
+  Array of cliché items to add to inventory.
+</ParamField>
+
+**Behavior:**
+- Prepends items to existing inventory
+- Automatically maps items to physical rack locations
+- Logs audit entry with item count
+
+<CodeGroup>
+```typescript Example
+import { inject } from '@angular/core';
+import { InventoryService } from './features/inventory/services/inventory.service';
+
+const inventoryService = inject(InventoryService);
+
+const newClises: CliseItem[] = [
+  {
+    id: 'cl-001',
+    item: '1250',
+    ubicacion: '1250',
+    descripcion: 'Etiqueta Coca Cola 500ml',
+    cliente: 'Coca Cola',
+    z: '8',
+    ancho: 250,
+    avance: 150,
+    ingreso: '2024-01-15',
+    mtl_acum: 50000,
+    // ... other fields
+  }
+];
+
+inventoryService.addClises(newClises);
+```
+</CodeGroup>
+
+#### updateClise
+
+Updates an existing cliché item.
+
+```typescript
+updateClise(item: CliseItem): void
+```
+
+<ParamField path="item" type="CliseItem" required>
+  Complete cliché item with updated properties. Must have matching ID.
+</ParamField>
+
+**Behavior:**
+- Finds item by ID and replaces it
+- Re-maps all items to rack layout
+- Logs audit entry with cliché number
+
+<CodeGroup>
+```typescript Example
+const clises = inventoryService.cliseItems;
+const clise = clises.find(c => c.item === '1250');
+
+if (clise) {
+  inventoryService.updateClise({
+    ...clise,
+    mtl_acum: clise.mtl_acum + 10000,
+    obs: 'Actualizado por producción'
+  });
+}
+```
+</CodeGroup>
+
+### Die Management
+
+#### addDies
+
+Adds new dies to inventory.
+
+```typescript
+addDies(items: DieItem[]): void
+```
+
+<ParamField path="items" type="DieItem[]" required>
+  Array of die items to add to inventory.
+</ParamField>
+
+**Behavior:**
+- Prepends items to existing die inventory
+- Logs audit entry with item count
+
+<CodeGroup>
+```typescript Example
+const newDies: DieItem[] = [
+  {
+    id: 'die-001',
+    serie: 'TR-450',
+    cliente: 'Nestle',
+    medida: '250x150mm',
+    ubicacion: 'TRQ1-50',
+    z: '8',
+    material: 'Polímero',
+    forma: 'Rectangular',
+    estado: 'OK',
+    columnas: 4,
+    repeticiones: 2,
+    // ... other fields
+  }
+];
+
+inventoryService.addDies(newDies);
+```
+</CodeGroup>
+
+#### updateDie
+
+Updates an existing die item.
+
+```typescript
+updateDie(item: DieItem): void
+```
+
+<ParamField path="item" type="DieItem" required>
+  Complete die item with updated properties. Must have matching ID.
+</ParamField>
+
+<CodeGroup>
+```typescript Example
+const dies = inventoryService.dieItems;
+const die = dies.find(d => d.serie === 'TR-450');
+
+if (die) {
+  inventoryService.updateDie({
+    ...die,
+    estado: 'Mantenimiento',
+    observaciones: 'Requiere afilado'
+  });
+}
+```
+</CodeGroup>
+
+### Stock Management
+
+#### addStock
+
+Adds a single finished goods item to stock.
+
+```typescript
+addStock(item: StockItem): void
+```
+
+<ParamField path="item" type="StockItem" required>
+  Stock item representing finished product inventory.
+</ParamField>
+
+**Behavior:**
+- Prepends item to stock list
+- Logs audit entry with OT number
+
+<CodeGroup>
+```typescript Example
+const newStock: StockItem = {
+  id: 'stock-001',
+  ot: '45123',
+  client: 'Coca Cola',
+  product: 'Etiqueta 500ml',
+  quantity: 1000,
+  unit: 'Rollos',
+  rolls: 100,
+  millares: 200,
+  location: 'DES-A-01',
+  status: 'Cuarentena',
+  entryDate: new Date().toISOString(),
+  palletId: 'PAL-2024-001'
+};
+
+inventoryService.addStock(newStock);
+```
+</CodeGroup>
+
+#### addStocks
+
+Adds multiple stock items (bulk import).
+
+```typescript
+addStocks(items: StockItem[]): void
+```
+
+<ParamField path="items" type="StockItem[]" required>
+  Array of stock items to add.
+</ParamField>
+
+<CodeGroup>
+```typescript Example
+// After importing from Excel
+const importedStock: StockItem[] = [...];
+inventoryService.addStocks(importedStock);
+```
+</CodeGroup>
+
+#### updateStock
+
+Updates an existing stock item.
+
+```typescript
+updateStock(item: StockItem): void
+```
+
+<ParamField path="item" type="StockItem" required>
+  Complete stock item with updated properties.
+</ParamField>
+
+<CodeGroup>
+```typescript Example
+const stocks = inventoryService.stockItems;
+const stock = stocks.find(s => s.ot === '45123');
+
+if (stock) {
+  inventoryService.updateStock({
+    ...stock,
+    status: 'Liberado',
+    notes: 'Aprobado por calidad'
+  });
+}
+```
+</CodeGroup>
+
+### Layout Management
+
+#### mapItemsToLayout
+
+Maps inventory items to physical rack locations based on ubicacion field.
+
+```typescript
+mapItemsToLayout(): void
+```
+
+**Behavior:**
+- Clears all existing rack box assignments
+- Extracts numeric location from `ubicacion` field
+- Maps clichés to clise racks (ranges: 1-2180, zones A-B)
+- Maps dies to die racks (ranges: 1-200)
+- Updates layoutData with items in each rack box
+
+**Rack Structure:**
+- **Clise Racks:** CL-1 (861-1190), CL-2 (1191-1520), CL-3 (1521-1850), CL-4 (1851-2180)
+- **Clise Zones:** A (1-200), B (201-400)
+- **Die Racks:** TRQ-1 (1-100), TRQ-2 (101-200)
+
+<CodeGroup>
+```typescript Example
+// Automatically called after addClises() and updateClise()
+// Can also be called manually:
+inventoryService.mapItemsToLayout();
+
+// Access mapped layout
+const layout = inventoryService.layoutData;
+layout.forEach(rack => {
+  console.log(`Rack: ${rack.name}`);
+  rack.levels.forEach(level => {
+    level.boxes.forEach(box => {
+      console.log(`  ${box.label}: ${box.items.length} items`);
+    });
+  });
+});
+```
+</CodeGroup>
+
+### Data Normalization
+
+#### normalizeCliseData
+
+Normalizes raw Excel data into CliseItem format with conflict detection.
+
+```typescript
+normalizeCliseData(rawData: any[]): { valid: CliseItem[], conflicts: CliseItem[] }
+```
+
+<ParamField path="rawData" type="any[]" required>
+  Raw data array from Excel import (sheet_to_json output).
+</ParamField>
+
+**Returns:**
+- `valid`: CliseItem[] - Items with required fields (item and cliente)
+- `conflicts`: CliseItem[] - Items missing required fields (flagged with hasConflict: true)
+
+**Validation Rules:**
+- Required: `item` and `cliente` fields
+- Numeric fields: ancho, avance, mtl_acum (parsed via ExcelService)
+- Auto-generated: id, ingreso (if missing), empty arrays for history/colorUsage
+
+<CodeGroup>
+```typescript Example
+import * as XLSX from 'xlsx';
+
+const file = event.target.files[0];
+const reader = new FileReader();
+
+reader.onload = (e: any) => {
+  const data = new Uint8Array(e.target.result);
+  const workbook = XLSX.read(data, { type: 'array' });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rawData = XLSX.utils.sheet_to_json(sheet);
+  
+  const { valid, conflicts } = inventoryService.normalizeCliseData(rawData);
+  
+  console.log('Valid clichés:', valid.length);
+  console.log('Conflicts:', conflicts.length);
+  
+  if (valid.length > 0) {
+    inventoryService.addClises(valid);
+  }
+  
+  if (conflicts.length > 0) {
+    // Show conflict resolution UI
+    this.showConflicts(conflicts);
+  }
+};
+
+reader.readAsArrayBuffer(file);
+```
+</CodeGroup>
+
+#### normalizeDieData
+
+Normalizes raw Excel data into DieItem format.
+
+```typescript
+normalizeDieData(rawData: any[]): { valid: DieItem[], conflicts: DieItem[] }
+```
+
+<ParamField path="rawData" type="any[]" required>
+  Raw data array from Excel import.
+</ParamField>
+
+**Returns:**
+- `valid`: DieItem[] - Items with required fields (serie and cliente)
+- `conflicts`: DieItem[] - Items missing required fields
+
+**Validation Rules:**
+- Required: `serie` and `cliente` fields
+- Numeric fields: columnas, repeticiones
+- Default estado: 'OK' if not provided
+
+<CodeGroup>
+```typescript Example
+const { valid, conflicts } = inventoryService.normalizeDieData(rawData);
+
+if (valid.length > 0) {
+  inventoryService.addDies(valid);
+}
+```
+</CodeGroup>
+
+#### normalizeStockData
+
+Normalizes raw Excel data into StockItem format.
+
+```typescript
+normalizeStockData(rawData: any[]): { valid: StockItem[], conflicts: StockItem[] }
+```
+
+<ParamField path="rawData" type="any[]" required>
+  Raw data array from Excel import.
+</ParamField>
+
+**Returns:**
+- `valid`: StockItem[] - Items with required fields (ot and client)
+- `conflicts`: StockItem[] - Items missing required fields
+
+**Validation Rules:**
+- Required: `ot` and `client` fields
+- Status normalization: maps variations to: 'Liberado', 'Retenido', 'Despachado', 'Cuarentena'
+- Auto-generated: palletId (if missing), entryDate (current date)
+
+**Status Mapping:**
+- 'liberado', 'ok', 'aprobado' → 'Liberado'
+- 'retenido', 'hold', 'rechazado' → 'Retenido'
+- 'despachado', 'enviado', 'salida' → 'Despachado'
+- Default → 'Cuarentena'
+
+<CodeGroup>
+```typescript Example
+const { valid, conflicts } = inventoryService.normalizeStockData(rawData);
+
+if (valid.length > 0) {
+  inventoryService.addStocks(valid);
+  console.log('Stock imported:', valid.length, 'items');
+}
+```
+</CodeGroup>
+
+## Data Structures
+
+### CliseItem
+
+```typescript
+interface CliseItem {
+  id: string;
+  item: string;              // Cliché code/number
+  ubicacion: string;         // Physical location
+  descripcion: string;       // Description
+  cliente: string;           // Client name
+  z: string;                 // Teeth count
+  estandar: string;
+  medidas: string;
+  troquel: string;
+  linkedDies: string[];      // Associated die IDs
+  ancho: number;             // Width
+  avance: number;            // Length/advance
+  col: number;               // Columns
+  rep: number;               // Repetitions
+  n_clises: number;          // Number of clichés
+  espesor: string;           // Thickness
+  ingreso: string;           // Entry date
+  obs: string;               // Observations
+  maq: string;               // Machine
+  colores: string;           // Colors
+  colorUsage: any[];         // Color usage details
+  n_ficha_fler: string;      // Technical sheet number
+  mtl_acum: number;          // Accumulated meters
+  history: any[];            // History log
+  hasConflict?: boolean;     // Import conflict flag
+}
+```
+
+### DieItem
+
+```typescript
+interface DieItem {
+  id: string;
+  serie: string;             // Die serial number
+  cliente: string;           // Client name
+  medida: string;            // Dimensions
+  ubicacion: string;         // Physical location
+  z: string;                 // Teeth count
+  ancho_mm: number;          // Width in mm
+  avance_mm: number;         // Advance in mm
+  ancho_plg: number;         // Width in inches
+  avance_plg: number;        // Advance in inches
+  columnas: number;          // Columns/cavities
+  repeticiones: number;      // Repetitions
+  material: string;          // Material type
+  forma: string;             // Shape
+  estado: string;            // Condition: 'OK', 'Mantenimiento', etc.
+  ingreso: string;           // Entry date
+  pb: string;
+  sep_ava: string;
+  cantidad: number;
+  almacen: string;
+  mtl_acum: number;          // Accumulated meters
+  tipo_troquel: string;      // Die type
+  observaciones: string;     // Notes
+  history: any[];            // History log
+  linkedClises: string[];    // Associated cliché IDs
+  hasConflict?: boolean;     // Import conflict flag
+}
+```
+
+### StockItem
+
+```typescript
+interface StockItem {
+  id: string;
+  ot: string;                           // Work order number
+  client: string;                       // Client name
+  product: string;                      // Product description
+  quantity: number;                     // Quantity
+  unit: string;                         // Unit of measure
+  rolls: number;                        // Number of rolls
+  millares: number;                     // Thousands (Mll)
+  location: string;                     // Storage location
+  status: 'Liberado' | 'Cuarentena' | 'Retenido' | 'Despachado';
+  entryDate: string;                    // ISO date string
+  notes?: string;                       // Additional notes
+  palletId: string;                     // Pallet identifier
+}
+```
+
+### RackConfig
+
+```typescript
+interface RackConfig {
+  id: string;
+  name: string;
+  type: 'clise' | 'die';
+  orientation: 'vertical' | 'horizontal';
+  levels: RackLevel[];
+}
+
+interface RackLevel {
+  levelNumber: number;
+  boxes: RackBox[];
+}
+
+interface RackBox {
+  label: string;
+  min?: number;              // Min location number
+  max?: number;              // Max location number
+  items: (CliseItem | DieItem)[];
+}
+```
+
+## Complete Import Example
+
+```typescript
+import { Component, inject } from '@angular/core';
+import { InventoryService } from './features/inventory/services/inventory.service';
+import * as XLSX from 'xlsx';
+
+@Component({
+  selector: 'app-inventory-import',
+  template: `
+    <div class="import-panel">
+      <h2>Importar Inventario</h2>
+      
+      <div class="import-section">
+        <h3>Clichés</h3>
+        <input type="file" (change)="importClises($event)" accept=".xlsx,.xls">
+      </div>
+      
+      <div class="import-section">
+        <h3>Troqueles</h3>
+        <input type="file" (change)="importDies($event)" accept=".xlsx,.xls">
+      </div>
+      
+      <div class="import-section">
+        <h3>Producto Terminado</h3>
+        <input type="file" (change)="importStock($event)" accept=".xlsx,.xls">
+      </div>
+      
+      @if (conflicts.length > 0) {
+        <div class="conflicts-panel">
+          <h3>Conflictos ({{ conflicts.length }})</h3>
+          @for (item of conflicts; track item.id) {
+            <div class="conflict-item">{{ item }}</div>
+          }
+        </div>
+      }
+    </div>
+  `
+})
+export class InventoryImportComponent {
+  inventoryService = inject(InventoryService);
+  conflicts: any[] = [];
+  
+  importClises(event: any) {
+    const file = event.target.files[0];
+    this.readExcel(file, (rawData) => {
+      const { valid, conflicts } = this.inventoryService.normalizeCliseData(rawData);
+      this.conflicts = conflicts;
+      
+      if (valid.length > 0) {
+        this.inventoryService.addClises(valid);
+        alert(`Importados ${valid.length} clichés`);
+      }
+    });
+  }
+  
+  importDies(event: any) {
+    const file = event.target.files[0];
+    this.readExcel(file, (rawData) => {
+      const { valid, conflicts } = this.inventoryService.normalizeDieData(rawData);
+      this.conflicts = conflicts;
+      
+      if (valid.length > 0) {
+        this.inventoryService.addDies(valid);
+        alert(`Importados ${valid.length} troqueles`);
+      }
+    });
+  }
+  
+  importStock(event: any) {
+    const file = event.target.files[0];
+    this.readExcel(file, (rawData) => {
+      const { valid, conflicts } = this.inventoryService.normalizeStockData(rawData);
+      this.conflicts = conflicts;
+      
+      if (valid.length > 0) {
+        this.inventoryService.addStocks(valid);
+        alert(`Importados ${valid.length} items de stock`);
+      }
+    });
+  }
+  
+  private readExcel(file: File, callback: (data: any[]) => void) {
+    const reader = new FileReader();
+    reader.onload = (e: any) => {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(sheet);
+      callback(jsonData);
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+```
+
+## Notes
+
+- Service automatically initializes with 4 mock finished goods items
+- Layout configuration includes 6 clise racks and 2 die racks
+- All add/update operations automatically log to AuditService
+- Field mappings support multiple column name variations (Spanish/English)
+- Spatial mapping extracts numeric values from ubicacion field
+- Mock data demonstrates rack ranges: clise (1-2180), die (1-200)
+- Stock status normalization handles common variations
+- Conflict detection ensures data quality before import

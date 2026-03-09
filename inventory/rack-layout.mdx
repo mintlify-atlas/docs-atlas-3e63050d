@@ -1,0 +1,522 @@
+---
+title: Rack Layout & Warehouse Visualization
+description: Interactive physical location mapping for clisés, dies, and finished goods
+---
+
+## Overview
+
+The Rack Layout module provides visual warehouse organization, automatically mapping inventory items to physical storage locations based on numeric ranges.
+
+<Frame>
+  <img src="https://via.placeholder.com/800x400/f9fafb/374151?text=Warehouse+Rack+Visualization" alt="Rack Layout Visualization" />
+</Frame>
+
+## RackConfig Data Model
+
+Complete rack structure from `inventory.models.ts:90-108`:
+
+<Expandable title="Rack Interfaces (TypeScript)">
+  ```typescript
+  export interface RackBox {
+    label: string;              // Display label (e.g., "1081-1135")
+    min?: number;               // Minimum location number in range
+    max?: number;               // Maximum location number in range
+    items: (CliseItem | DieItem)[];  // Items currently in this box
+  }
+
+  export interface RackLevel {
+    levelNumber: number;        // Level/shelf number (1=bottom, 3=top)
+    boxes: RackBox[];           // Boxes on this level
+  }
+
+  export interface RackConfig {
+    id: string;                 // Unique rack identifier
+    name: string;               // Display name
+    type: 'clise' | 'die';      // Item type this rack stores
+    levels: RackLevel[];        // Rack shelves from bottom to top
+    orientation: 'vertical' | 'horizontal';  // Display orientation
+  }
+  ```
+</Expandable>
+
+### Field Descriptions
+
+<ResponseField name="label" type="string">
+  Human-readable range label displayed on rack boxes.
+  
+  Examples:
+  - `"1081-1135"` = Holds items with ubicacion 1081-1135
+  - `"A-01 (1-50)"` = Zone A, position 01, items 1-50
+</ResponseField>
+
+<ResponseField name="min / max" type="number">
+  Numeric range boundaries. Items with `ubicacion` values between min and max are auto-assigned to this box.
+  
+  ```typescript
+  { label: "1081-1135", min: 1081, max: 1135 }
+  ```
+  
+  Item with `ubicacion: "1100"` → automatically mapped to this box
+</ResponseField>
+
+<ResponseField name="items" type="(CliseItem | DieItem)[]">
+  Array of inventory items currently stored in this box. Populated by `mapItemsToLayout()` service function.
+  
+  ```typescript
+  items: [
+    { id: "c1", item: "CL-1100", cliente: "Nestlé", ... },
+    { id: "c2", item: "CL-1105", cliente: "Gloria", ... }
+  ]
+  ```
+</ResponseField>
+
+<ResponseField name="orientation" type="'vertical' | 'horizontal'">
+  Visual layout direction:
+  
+  - **vertical**: Levels stacked top-to-bottom (typical tall racks)
+  - **horizontal**: Levels arranged left-to-right (wide storage zones)
+</ResponseField>
+
+## Rack Configurations
+
+Default warehouse layout defined in `inventory.service.ts:83-180`:
+
+### Cliché Racks
+
+<AccordionGroup>
+  <Accordion title="RACK CL-1 (861-1190)" icon="layer-group">
+    3-level vertical rack with 2 boxes per level:
+    
+    ```typescript
+    {
+      id: 'CL1',
+      name: 'RACK CL-1 (861-1190)',
+      type: 'clise',
+      orientation: 'vertical',
+      levels: [
+        { levelNumber: 3, boxes: [
+          { label: '1081-1135', min: 1081, max: 1135, items: [] },
+          { label: '1136-1190', min: 1136, max: 1190, items: [] }
+        ]},
+        { levelNumber: 2, boxes: [
+          { label: '971-1025', min: 971, max: 1025, items: [] },
+          { label: '1026-1080', min: 1026, max: 1080, items: [] }
+        ]},
+        { levelNumber: 1, boxes: [
+          { label: '861-915', min: 861, max: 915, items: [] },
+          { label: '916-970', min: 916, max: 970, items: [] }
+        ]}
+      ]
+    }
+    ```
+    
+    **Capacity**: 330 items per box × 6 boxes = 1,980 total capacity
+  </Accordion>
+
+  <Accordion title="RACK CL-2 (1191-1520)" icon="layer-group">
+    3-level vertical rack:
+    - Level 3: 1411-1465, 1466-1520
+    - Level 2: 1301-1355, 1356-1410
+    - Level 1: 1191-1245, 1246-1300
+  </Accordion>
+
+  <Accordion title="RACK CL-3 (1521-1850)" icon="layer-group">
+    3-level vertical rack:
+    - Level 3: 1741-1795, 1796-1850
+    - Level 2: 1631-1685, 1686-1740
+    - Level 1: 1521-1575, 1576-1630
+  </Accordion>
+
+  <Accordion title="RACK CL-4 (1851-2180)" icon="layer-group">
+    3-level vertical rack:
+    - Level 3: 2071-2125, 2126-2180
+    - Level 2: 1961-2015, 2016-2070
+    - Level 1: 1851-1905, 1906-1960
+  </Accordion>
+
+  <Accordion title="ZONA A (0-200)" icon="map-location-dot">
+    Horizontal zone layout (shelving):
+    
+    ```typescript
+    {
+      id: 'EST1',
+      name: 'ZONA A (0-200)',
+      type: 'clise',
+      orientation: 'horizontal',
+      levels: [
+        { levelNumber: 1, boxes: [
+          { label: 'A-01 (1-50)', min: 1, max: 50, items: [] },
+          { label: 'A-02 (51-100)', min: 51, max: 100, items: [] },
+          { label: 'A-03 (101-150)', min: 101, max: 150, items: [] },
+          { label: 'A-04 (151-200)', min: 151, max: 200, items: [] }
+        ]}
+      ]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="ZONA B (201-400)" icon="map-location-dot">
+    Horizontal zone layout:
+    - B-01 (201-250)
+    - B-02 (251-300)
+    - B-03 (301-350)
+    - B-04 (351-400)
+  </Accordion>
+</AccordionGroup>
+
+### Die Racks
+
+<AccordionGroup>
+  <Accordion title="RACK TRQ-1 (1-100)" icon="scissors">
+    3-level vertical rack for dies:
+    
+    ```typescript
+    {
+      id: 'TRQ1',
+      name: 'RACK TRQ-1 (1-100)',
+      type: 'die',
+      orientation: 'vertical',
+      levels: [
+        { levelNumber: 3, boxes: [{ label: '1-33', min: 1, max: 33, items: [] }] },
+        { levelNumber: 2, boxes: [{ label: '34-66', min: 34, max: 66, items: [] }] },
+        { levelNumber: 1, boxes: [{ label: '67-100', min: 67, max: 100, items: [] }] }
+      ]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="RACK TRQ-2 (101-200)" icon="scissors">
+    3-level vertical rack:
+    - Level 3: 101-133
+    - Level 2: 134-166
+    - Level 1: 167-200
+  </Accordion>
+</AccordionGroup>
+
+Reference: `inventory.service.ts:83-180`
+
+## Automatic Mapping
+
+Items are auto-assigned to racks when imported or updated:
+
+```typescript
+// inventory.service.ts:292-338
+mapItemsToLayout() {
+  const currentLayout = this.layoutData;
+  const clises = this.cliseItems;
+  const dies = this.dieItems;
+
+  // Clear existing assignments
+  currentLayout.forEach(rack => 
+    rack.levels.forEach(lvl => 
+      lvl.boxes.forEach(box => box.items = [])
+    )
+  );
+  
+  // Map Clises
+  clises.forEach(item => {
+    if (!item.ubicacion) return;
+    const locationNumber = parseInt(item.ubicacion.replace(/\D/g, ''));
+    if (!isNaN(locationNumber)) {
+      for (const rack of currentLayout) {
+        if (rack.type !== 'clise') continue;
+        for (const level of rack.levels) {
+          for (const box of level.boxes) {
+            if (box.min !== undefined && box.max !== undefined && 
+                locationNumber >= box.min && locationNumber <= box.max) {
+              box.items.push(item);
+              return;  // Stop after first match
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // Map Dies (similar logic)
+  dies.forEach(item => {
+    if (!item.ubicacion) return;
+    const locationNumber = parseInt(item.ubicacion.replace(/\D/g, ''));
+    if (!isNaN(locationNumber)) {
+      for (const rack of currentLayout) {
+        if (rack.type !== 'die') continue;
+        for (const level of rack.levels) {
+          for (const box of level.boxes) {
+            if (box.min !== undefined && box.max !== undefined && 
+                locationNumber >= box.min && locationNumber <= box.max) {
+              box.items.push(item);
+              return;
+            }
+          }
+        }
+      }
+    }
+  });
+  
+  this._layoutData.next([...currentLayout]);
+}
+```
+
+### Mapping Logic
+
+1. **Extract Numeric Value**: `parseInt(item.ubicacion.replace(/\D/g, ''))`
+   - `"CL-1100"` → `1100`
+   - `"A-02"` → `2`
+   - `"TRQ-45"` → `45`
+
+2. **Match to Range**: Find box where `locationNumber >= min && locationNumber <= max`
+
+3. **Assign Item**: Add item to `box.items` array
+
+4. **Trigger Update**: Emit new layout via BehaviorSubject
+
+<Warning>
+  Items with non-numeric or out-of-range `ubicacion` values will not appear in the visualization. Ensure all items have valid numeric location codes.
+</Warning>
+
+## UI Component
+
+The `InventoryMapComponent` provides interactive visualization:
+
+### Tab Navigation
+
+```typescript
+// inventory-map.component.ts:124
+activeTab: 'clise' | 'die' = 'clise';
+
+get cliseRacks() {
+  return this.layoutData.filter(r => r.type === 'clise');
+}
+
+get dieRacks() {
+  return this.layoutData.filter(r => r.type === 'die');
+}
+```
+
+Reference: `inventory-map.component.ts:120-136`
+
+### Visual Rack Rendering
+
+```html
+<!-- inventory-map.component.ts:46-62 -->
+<div *ngIf="activeTab === 'clise'" class="animate-fadeIn">
+  <div class="flex flex-wrap gap-8">
+    <div *ngFor="let rack of cliseRacks" class="flex flex-col">
+      <h3 class="text-center font-bold text-gray-700 mb-2 bg-gray-200 rounded py-1">
+        {{ rack.name }}
+      </h3>
+      <div class="flex border-4 border-gray-300 bg-white p-1 gap-1" 
+           [class.flex-col]="rack.orientation === 'vertical'">
+        <div *ngFor="let level of rack.levels" class="flex gap-1" 
+             [class.flex-col]="rack.orientation === 'horizontal'">
+          <div *ngFor="let box of level.boxes" 
+               class="w-16 h-12 border border-gray-200 flex flex-col items-center justify-center text-[10px] cursor-pointer hover:bg-blue-50 transition-colors relative group"
+               [class.bg-green-100]="box.items.length > 0"
+               (click)="selectedBox = box">
+            <span class="font-bold text-gray-600">{{ box.label }}</span>
+            <span *ngIf="box.items.length > 0" class="text-xs font-black text-green-700">
+              {{ box.items.length }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+### Visual Indicators
+
+- **Empty Boxes**: White background, gray border
+- **Occupied Boxes**: Green background (`bg-green-100`)
+- **Item Count**: Bold number showing items in box
+- **Hover Effect**: Blue highlight on mouseover
+- **Clickable**: Opens detail panel on click
+
+## Detail Panel
+
+Clicking a box opens a sliding side panel:
+
+```typescript
+// inventory-map.component.ts:86-112
+selectedBox: RackBox | null = null;
+
+getItemLabel(item: any): string {
+  return item.item || item.serie || 'N/A';
+}
+
+getItemDesc(item: any): string {
+  return item.descripcion || item.medida || '';
+}
+```
+
+### Panel Features
+
+1. **Header**: Shows box label and item count
+2. **Item Cards**: Each item displays:
+   - Primary identifier (item code or serie)
+   - Cliente name
+   - Description/medida
+   - Ubicacion badge
+3. **Empty State**: Message if box is empty
+4. **Close Button**: X icon to dismiss panel
+
+Panel slides in from right with animation:
+
+```css
+@keyframes slideInRight { 
+  from { transform: translateX(100%); } 
+  to { transform: translateX(0); } 
+}
+.animate-slideInRight { animation: slideInRight 0.3s ease-out; }
+```
+
+Reference: `inventory-map.component.ts:86-113`
+
+## Usage Examples
+
+### Find Item Location
+
+<Steps>
+  <Step title="Navigate to Mapa de Almacén">
+    Click Inventory → Mapa de Almacén in sidebar
+  </Step>
+  
+  <Step title="Select Tab">
+    Choose Clisés or Troqueles tab
+  </Step>
+  
+  <Step title="Locate Item">
+    Green boxes contain items. Number shows quantity in each box.
+  </Step>
+  
+  <Step title="View Details">
+    Click box to see complete list of items with cliente and descriptions
+  </Step>
+</Steps>
+
+### Add New Rack
+
+To expand warehouse capacity, add new RackConfig to the service:
+
+```typescript
+// inventory.service.ts - Add to _layoutData array
+{
+  id: 'CL5',
+  name: 'RACK CL-5 (2181-2510)',
+  type: 'clise',
+  orientation: 'vertical',
+  levels: [
+    { levelNumber: 3, boxes: [
+      { label: '2401-2455', min: 2401, max: 2455, items: [] },
+      { label: '2456-2510', min: 2456, max: 2510, items: [] }
+    ]},
+    { levelNumber: 2, boxes: [
+      { label: '2291-2345', min: 2291, max: 2345, items: [] },
+      { label: '2346-2400', min: 2346, max: 2400, items: [] }
+    ]},
+    { levelNumber: 1, boxes: [
+      { label: '2181-2235', min: 2181, max: 2235, items: [] },
+      { label: '2236-2290', min: 2236, max: 2290, items: [] }
+    ]}
+  ]
+}
+```
+
+<Tip>
+  After adding racks, call `mapItemsToLayout()` to populate with existing inventory.
+</Tip>
+
+## Integration with Cliché/Die Forms
+
+The detail modals for clisés and dies include embedded rack visualization:
+
+```html
+<!-- inventory-clise.component.ts:563-586 -->
+<div class="flex flex-col gap-3">
+  <div class="flex justify-between items-center mb-1">
+    <p class="text-white text-sm font-bold uppercase tracking-wider">Ubicación Física</p>
+    <span class="text-xs bg-[#1c2327] px-2 py-1 rounded text-[#9db0b9] border border-[#2a343b]">
+      Planta Monterrey
+    </span>
+  </div>
+  <div class="bg-[#1c2327] rounded-xl p-4 border border-[#2a343b] flex flex-col gap-4">
+    <div class="flex justify-between text-xs text-[#9db0b9] mb-1">
+      <span>Estante {{ (currentClise.ubicacion || '---').split('-')[0] }}</span>
+      <span>---</span>
+    </div>
+    <!-- Visual Grid Placeholder (Static representation) -->
+    <div class="grid grid-cols-4 gap-2 w-full aspect-video">
+      <div *ngFor="let box of [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]" 
+           class="rounded flex items-center justify-center text-[10px] bg-[#2a343b] text-[#4a5e69]">
+        <span>.</span>
+      </div>
+    </div>
+    <div class="text-xs text-[#9db0b9] text-center mt-1">
+      Posición Actual: 
+      <input [readonly]="isReadOnly" [(ngModel)]="currentClise.ubicacion" 
+             class="bg-transparent border-b border-[#1193d4] text-white font-mono w-16 text-center outline-none">
+    </div>
+  </div>
+</div>
+```
+
+Editable `ubicacion` field allows direct relocation from the item detail view.
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Numeric Locations" icon="hashtag">
+    Use pure numeric values for `ubicacion` to enable automatic rack mapping
+  </Card>
+  
+  <Card title="Sequential Ranges" icon="arrow-right">
+    Assign consecutive number ranges to avoid gaps in rack coverage
+  </Card>
+  
+  <Card title="Regular Validation" icon="check">
+    Periodically audit unmapped items (those without valid location numbers)
+  </Card>
+  
+  <Card title="Capacity Planning" icon="chart-line">
+    Monitor box fill rates (green boxes) to identify when new racks are needed
+  </Card>
+</CardGroup>
+
+## Finished Goods Zones
+
+While not shown in default layout, finished goods stock uses location-based zoning:
+
+- **DES-A-01 to DES-A-10**: Dispatch Zone A (high-volume customers)
+- **DES-B-01 to DES-B-10**: Dispatch Zone B (standard shipments)
+- **ZONA-RET**: Retention area for quality holds
+- **RECEPCIÓN**: Receiving area for new production
+
+These zones can be added to `RackConfig` array for visualization:
+
+```typescript
+{
+  id: 'PT-DESP',
+  name: 'Zona Despacho (PT)',
+  type: 'stock',  // New type for finished goods
+  orientation: 'horizontal',
+  levels: [
+    { levelNumber: 1, boxes: [
+      { label: 'DES-A-01', items: [] },
+      { label: 'DES-A-02', items: [] },
+      // ... additional zones
+    ]}
+  ]
+}
+```
+
+<Note>
+  Finished goods mapping requires updating the `mapItemsToLayout()` function to handle `StockItem` types.
+</Note>
+
+## Related Topics
+
+- [Cliché Management](./clise-management) - Items stored in CL racks
+- [Die Management](./die-management) - Items stored in TRQ racks
+- [Stock Control](./stock-control) - Finished goods warehouse zones
+- [Inventory Overview](./overview) - Complete inventory system architecture

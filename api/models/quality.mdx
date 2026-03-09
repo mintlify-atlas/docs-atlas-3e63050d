@@ -1,0 +1,278 @@
+---
+title: Quality Data Models
+description: TypeScript interfaces for quality control, incidents, and CAPA (Corrective and Preventive Actions)
+icon: clipboard-check
+---
+
+## Incident
+
+Represents a quality or operational incident requiring tracking and resolution.
+
+<ResponseField name="id" type="string" required>
+  Unique incident identifier
+</ResponseField>
+
+<ResponseField name="code" type="string" required>
+  Human-readable incident code (e.g., INC-2026-001)
+</ResponseField>
+
+<ResponseField name="title" type="string" required>
+  Brief title describing the incident
+</ResponseField>
+
+<ResponseField name="description" type="string" required>
+  Detailed description of the incident
+</ResponseField>
+
+<ResponseField name="priority" type="IncidentPriority" required>
+  Priority level of the incident
+  
+  Available priorities:
+  - `Alta` - High priority
+  - `Media` - Medium priority
+  - `Baja` - Low priority
+</ResponseField>
+
+<ResponseField name="type" type="IncidentType" required>
+  Type/category of the incident
+  
+  Available types:
+  - `Calidad` - Quality issue
+  - `Seguridad` - Safety issue
+  - `Maquinaria` - Machinery/equipment issue
+  - `Material` - Material/supply issue
+  - `Otro` - Other type
+</ResponseField>
+
+<ResponseField name="status" type="IncidentStatus" required>
+  Current status of the incident
+  
+  Available statuses:
+  - `Abierta` - Open/newly reported
+  - `En Análisis` - Under analysis
+  - `Acción Correctiva` - Corrective action being taken
+  - `Cerrada` - Closed/resolved
+</ResponseField>
+
+<ResponseField name="otRef" type="string">
+  Reference to related work order (OT), if applicable
+</ResponseField>
+
+<ResponseField name="machineRef" type="string">
+  Reference to related machine, if applicable
+</ResponseField>
+
+<ResponseField name="reportedBy" type="string" required>
+  Name of the user who reported the incident
+</ResponseField>
+
+<ResponseField name="reportedAt" type="Date" required>
+  Date and time when the incident was reported
+</ResponseField>
+
+<ResponseField name="assignedTo" type="string" required>
+  User assigned to resolve the incident
+</ResponseField>
+
+<ResponseField name="rootCause" type="string">
+  Identified root cause of the incident (filled during analysis)
+</ResponseField>
+
+<ResponseField name="actions" type="CapaAction[]" required>
+  Array of corrective and preventive actions (CAPA)
+</ResponseField>
+
+---
+
+## CapaAction
+
+Represents a Corrective or Preventive Action within an incident.
+
+<ResponseField name="id" type="string" required>
+  Unique action identifier
+</ResponseField>
+
+<ResponseField name="description" type="string" required>
+  Detailed description of the action to be taken
+</ResponseField>
+
+<ResponseField name="type" type="'Correctiva' | 'Preventiva'" required>
+  Type of action
+  
+  - `Correctiva` - Corrective action (fixes the current issue)
+  - `Preventiva` - Preventive action (prevents future occurrences)
+</ResponseField>
+
+<ResponseField name="responsible" type="string" required>
+  User responsible for executing the action
+</ResponseField>
+
+<ResponseField name="deadline" type="string" required>
+  Deadline for completing the action (ISO date format)
+</ResponseField>
+
+<ResponseField name="completed" type="boolean" required>
+  Whether the action has been completed
+</ResponseField>
+
+---
+
+## IncidentPriority
+
+Type definition for incident priority levels.
+
+```typescript
+type IncidentPriority = 'Alta' | 'Media' | 'Baja';
+```
+
+<ParamField path="Alta" type="string">
+  High priority - requires immediate attention
+</ParamField>
+
+<ParamField path="Media" type="string">
+  Medium priority - should be addressed soon
+</ParamField>
+
+<ParamField path="Baja" type="string">
+  Low priority - can be addressed in normal workflow
+</ParamField>
+
+---
+
+## IncidentType
+
+Type definition for incident categories.
+
+```typescript
+type IncidentType = 'Calidad' | 'Seguridad' | 'Maquinaria' | 'Material' | 'Otro';
+```
+
+<ParamField path="Calidad" type="string">
+  Quality-related incident (defects, non-conformances, etc.)
+</ParamField>
+
+<ParamField path="Seguridad" type="string">
+  Safety incident (workplace safety, hazards, etc.)
+</ParamField>
+
+<ParamField path="Maquinaria" type="string">
+  Machinery/equipment incident (breakdowns, malfunctions, etc.)
+</ParamField>
+
+<ParamField path="Material" type="string">
+  Material/supply incident (defective materials, shortages, etc.)
+</ParamField>
+
+<ParamField path="Otro" type="string">
+  Other type not covered by standard categories
+</ParamField>
+
+---
+
+## IncidentStatus
+
+Type definition for incident workflow status.
+
+```typescript
+type IncidentStatus = 'Abierta' | 'En Análisis' | 'Acción Correctiva' | 'Cerrada';
+```
+
+<ParamField path="Abierta" type="string">
+  Incident has been opened and is awaiting initial review
+</ParamField>
+
+<ParamField path="En Análisis" type="string">
+  Incident is being analyzed to determine root cause
+</ParamField>
+
+<ParamField path="Acción Correctiva" type="string">
+  Corrective actions are being implemented
+</ParamField>
+
+<ParamField path="Cerrada" type="string">
+  Incident has been resolved and closed
+</ParamField>
+
+## Usage Example
+
+```typescript
+import { Incident, CapaAction, IncidentPriority, IncidentType, IncidentStatus } from './models/quality.models';
+
+const incident: Incident = {
+  id: 'inc-12345',
+  code: 'INC-2026-045',
+  title: 'Defecto de impresión en etiquetas lote L-2026-150',
+  description: 'Se detectaron manchas de tinta en aproximadamente 500 etiquetas del lote L-2026-150. El defecto aparece en la zona superior izquierda.',
+  priority: 'Alta',
+  type: 'Calidad',
+  status: 'En Análisis',
+  otRef: 'OT-2026-0150',
+  machineRef: 'IMP-01',
+  reportedBy: 'Juan Pérez',
+  reportedAt: new Date('2026-03-09T14:30:00Z'),
+  assignedTo: 'María García',
+  rootCause: 'Exceso de presión en cilindro anilox, causando transferencia excesiva de tinta',
+  actions: [
+    {
+      id: 'act-001',
+      description: 'Ajustar presión del cilindro anilox a especificaciones del fabricante',
+      type: 'Correctiva',
+      responsible: 'Carlos Técnico',
+      deadline: '2026-03-10',
+      completed: false
+    },
+    {
+      id: 'act-002',
+      description: 'Implementar checklist de verificación de presiones antes de cada turno',
+      type: 'Preventiva',
+      responsible: 'Juan Pérez',
+      deadline: '2026-03-15',
+      completed: false
+    },
+    {
+      id: 'act-003',
+      description: 'Capacitar a operadores en ajustes correctos de presión',
+      type: 'Preventiva',
+      responsible: 'María García',
+      deadline: '2026-03-20',
+      completed: false
+    }
+  ]
+};
+
+// Creating a new CAPA action
+const newAction: CapaAction = {
+  id: 'act-004',
+  description: 'Realizar mantenimiento preventivo mensual del sistema de entintado',
+  type: 'Preventiva',
+  responsible: 'Departamento Mantenimiento',
+  deadline: '2026-04-01',
+  completed: false
+};
+
+// Add action to incident
+incident.actions.push(newAction);
+
+// Update incident status when actions are implemented
+incident.status = 'Acción Correctiva';
+
+// Close incident when all actions are completed
+if (incident.actions.every(action => action.completed)) {
+  incident.status = 'Cerrada';
+}
+```
+
+## CAPA Workflow
+
+The typical workflow for handling incidents with CAPA actions:
+
+1. **Report Incident** - Create incident with `status: 'Abierta'`
+2. **Analyze** - Update to `status: 'En Análisis'`, identify root cause
+3. **Plan Actions** - Add CAPA actions (both Correctiva and Preventiva)
+4. **Execute** - Update to `status: 'Acción Correctiva'`, implement actions
+5. **Verify** - Mark actions as `completed: true`
+6. **Close** - Update to `status: 'Cerrada'` when all actions complete
+
+<Note>
+The CAPA system ensures systematic root cause analysis and prevents recurrence through both corrective (fixing current issues) and preventive (avoiding future issues) actions.
+</Note>

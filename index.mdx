@@ -1,97 +1,120 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "P.FLEX Documentation"
+description: "Industrial ERP for flexographic printing production control, traceability, and quality management"
 ---
 
-## Setting up
+<div style={{
+  background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+  borderRadius: '16px',
+  padding: '48px 32px',
+  marginBottom: '32px',
+  border: '1px solid rgba(106, 207, 223, 0.2)'
+}}>
+  <h1 style={{
+    fontSize: '48px',
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: '16px',
+    fontFamily: 'Google Sans, sans-serif'
+  }}>
+    Welcome to P.FLEX
+  </h1>
+  <p style={{
+    fontSize: '20px',
+    color: '#e8f3f4',
+    marginBottom: '32px',
+    lineHeight: '1.6'
+  }}>
+    Complete production control and traceability for flexographic printing operations. Track orders, manage inventory, monitor quality, and optimize your manufacturing workflow.
+  </p>
+  <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+    <a href="/quickstart" style={{
+      background: '#6acfdf',
+      color: '#0e0e0e',
+      padding: '12px 24px',
+      borderRadius: '4px',
+      fontWeight: '700',
+      textDecoration: 'none',
+      display: 'inline-block'
+    }}>
+      Get Started
+    </a>
+    <a href="/key-features" style={{
+      background: 'transparent',
+      color: '#6acfdf',
+      padding: '12px 24px',
+      borderRadius: '4px',
+      fontWeight: '700',
+      textDecoration: 'none',
+      display: 'inline-block',
+      border: '2px solid #6acfdf'
+    }}>
+      View Features
+    </a>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+## What is P.FLEX?
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+P.FLEX is an industrial B2B ERP system designed specifically for flexographic printing plants. It provides real-time production tracking, comprehensive inventory management, quality control, and complete traceability from order intake to finished goods.
 
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Production Tracking" icon="chart-line" href="/features/production">
+    Monitor print, diecut, rewind, and packaging operations in real-time with KPIs and metrics
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Inventory Management" icon="warehouse" href="/features/inventory">
+    Manage clichés, dies, inks, materials, and finished goods with rack layout visualization
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Order Management" icon="file-invoice" href="/features/orders">
+    Track work orders (OT) from intake through production to completion with full history
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Quality Control" icon="badge-check" href="/features/quality">
+    Report incidents, track tooling status, and maintain compliance with audit logs
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## Key Capabilities
 
-Everything you need to create world-class documentation.
+<CardGroup cols={3}>
+  <Card title="Multi-Role Support" icon="users">
+    Role-based access for Admins, Managers, and Operators with tailored interfaces
+  </Card>
+  <Card title="Analytics Dashboard" icon="chart-mixed">
+    Real-time KPIs, production metrics, and performance tracking
+  </Card>
+  <Card title="Planning & Scheduling" icon="calendar">
+    Visual production planning with machine and resource allocation
+  </Card>
+  <Card title="Operator Mode" icon="display">
+    Full-screen production reporting optimized for shop floor use
+  </Card>
+  <Card title="Audit Logging" icon="clipboard-list">
+    Complete traceability for compliance and quality management systems
+  </Card>
+  <Card title="Excel Integration" icon="file-excel">
+    Import and export data for seamless integration with existing systems
+  </Card>
+</CardGroup>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Quick Links
 
-## Need inspiration?
+<CardGroup cols={2}>
+  <Card title="Installation Guide" icon="download" href="/getting-started/installation">
+    Set up P.FLEX in your environment
+  </Card>
+  <Card title="User Roles & Permissions" icon="shield" href="/getting-started/user-roles">
+    Understand access levels and capabilities
+  </Card>
+  <Card title="Production Modules" icon="industry" href="/production/print">
+    Explore print, diecut, rewind, and packaging features
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/state-service">
+    Developer documentation for services and models
+  </Card>
+</CardGroup>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
+## Need Help?
+
+<Card title="View on GitHub" icon="github" href="https://github.com/zcops-tests/P.FLEX">
+  Access the source code, report issues, and contribute to the project
 </Card>

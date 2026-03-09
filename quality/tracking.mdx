@@ -1,0 +1,415 @@
+---
+title: "Quality Tracking & Tooling Status"
+description: "Monitor tooling lifecycle, track usage metrics, and ensure production quality standards"
+---
+
+## Overview
+
+The Quality Tracking system provides real-time monitoring of production tooling (clises and dies), usage accumulation, and maintenance status. Proactive tracking prevents equipment failures and ensures consistent product quality.
+
+<Note>
+  Tooling status is automatically updated during production runs and can be manually adjusted through the inventory management interface.
+</Note>
+
+## Tooling Categories
+
+<Tabs>
+  <Tab title="Clises (Printing Plates)">
+    Photopolymer printing plates used in flexographic printing.
+    
+    **Key Metrics:**
+    - Accumulated linear meters (`mtl_acum`)
+    - Color usage tracking per plate
+    - Version history and maintenance records
+    - Linked dies for coordinated tracking
+    
+    From `inventory.models.ts:16-43`:
+    ```typescript
+    export interface CliseItem {
+      id: string;
+      item: string;              // Plate code
+      ubicacion: string;         // Storage location
+      descripcion: string;
+      cliente: string;
+      z: string;                 // Z-axis depth
+      linkedDies: string[];      // Associated dies
+      ancho: number | null;      // Width
+      avance: number | null;     // Advance
+      col: number | null;        // Columns
+      rep: number | null;        // Repetitions
+      n_clises: number | null;   // Number of plates
+      mtl_acum: number | null;   // Accumulated meters
+      colorUsage?: CliseColorUsage[];
+      history: CliseHistory[];
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Troqueles (Dies)">
+    Cutting dies used in die-cutting operations.
+    
+    **Key Metrics:**
+    - Accumulated meters processed
+    - Die condition status
+    - Material and form specifications
+    - Storage location tracking
+    
+    From `inventory.models.ts:45-72`:
+    ```typescript
+    export interface DieItem {
+      id: string;
+      medida: string;           // Die measurement
+      ubicacion: string;        // Storage location
+      serie: string;            // Serial number
+      linkedClises: string[];   // Associated plates
+      estado: string;           // Status: OK | Desgaste | Dañado | Reparacion
+      mtl_acum: number | null;  // Accumulated meters
+      tipo_troquel: string;     // Die type
+      material: string;
+      forma: string;            // Shape
+      cliente: string;
+      history: CliseHistory[];
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Die Status Tracking
+
+### Status States
+
+From `inventory-die.component.ts:454-460`:
+
+```typescript
+get stats() {
+  const total = this.dieItems.length;
+  const available = this.dieItems.filter(d => d.estado === 'OK').length;
+  const maintenance = this.dieItems.filter(d => 
+    d.estado === 'Reparacion' || d.estado === 'Mantenimiento'
+  ).length;
+  const critical = this.dieItems.filter(d => 
+    d.estado === 'Dañado' || d.estado === 'Desgaste'
+  ).length;
+  return { total, available, maintenance, critical };
+}
+```
+
+<CardGroup cols={2}>
+  <Card title="OK (Available)" icon="check-circle" color="#10b981">
+    Die is in good condition and ready for production use
+  </Card>
+  <Card title="Desgaste (Wear)" icon="warning" color="#f59e0b">
+    Die showing signs of wear, requires monitoring or preventive maintenance
+  </Card>
+  <Card title="Reparacion (Maintenance)" icon="build" color="#f59e0b">
+    Die currently undergoing maintenance or repair
+  </Card>
+  <Card title="Dañado (Damaged)" icon="error" color="#ef4444">
+    Die damaged and unavailable for production
+  </Card>
+</CardGroup>
+
+## Usage History Tracking
+
+### History Event Types
+
+From `inventory.models.ts:2-9`:
+
+```typescript
+export interface CliseHistory {
+  date: string;
+  type: 'Producción' | 'Mantenimiento' | 'Reparación' | 
+        'Cambio Versión' | 'Creación' | 'Baja' | 'Otro';
+  description: string;
+  user: string;
+  machine?: string;   // Machine used
+  amount?: number;    // Meters/units processed
+}
+```
+
+<AccordionGroup>
+  <Accordion title="Producción (Production)">
+    Records each production run with:
+    - Date and time
+    - Machine used
+    - Linear meters processed
+    - Operating user
+    - Work order reference
+    
+    Automatically increments `mtl_acum` counter.
+  </Accordion>
+  
+  <Accordion title="Mantenimiento (Maintenance)">
+    Scheduled or preventive maintenance activities:
+    - Cleaning and inspection
+    - Minor adjustments
+    - Lubrication and care
+  </Accordion>
+  
+  <Accordion title="Reparación (Repair)">
+    Corrective maintenance and repairs:
+    - Damage assessment
+    - Part replacement
+    - Condition restoration
+    - Return to service validation
+  </Accordion>
+  
+  <Accordion title="Cambio Versión (Version Change)">
+    Plate revisions and modifications:
+    - Design updates
+    - Customer specification changes
+    - Quality improvements
+  </Accordion>
+</AccordionGroup>
+
+## Color Usage Tracking (Clises)
+
+From `inventory.models.ts:11-14`:
+
+```typescript
+export interface CliseColorUsage {
+  name: string;     // Color name (e.g., "Cyan", "Magenta")
+  meters: number;   // Meters printed with this color
+}
+```
+
+Color usage enables:
+- Ink consumption forecasting
+- Color-specific wear analysis
+- Plate replacement planning
+- Cost allocation per color
+
+## Critical Tooling Alerts
+
+### Die Wear Detection
+
+From `inventory-die.component.ts:56-60`:
+
+```html
+<div class="bg-[#1A222C] rounded-xl p-5 border border-[#2D3748] 
+            hover:border-[#EF4444]/50 transition-colors">
+  <p class="text-[10px] font-bold text-slate-400 uppercase">Uso Crítico</p>
+  <span class="text-3xl font-bold text-white">{{ stats.critical | number }}</span>
+</div>
+```
+
+<Warning>
+  Dies with status **Desgaste** or **Dañado** should be replaced before scheduling production runs to avoid quality defects and unplanned downtime.
+</Warning>
+
+## Filtering and Search
+
+### Multi-Criteria Filtering
+
+From `inventory-die.component.ts:418-441`:
+
+```typescript
+get filteredAndSortedList() {
+  let list = this.baseList;
+  
+  // Apply Filters
+  if (this.filterZ) 
+    list = list.filter(i => i.z == this.filterZ);
+  if (this.filterMaterial) 
+    list = list.filter(i => i.material === this.filterMaterial);
+  if (this.filterShape) 
+    list = list.filter(i => i.forma === this.filterShape);
+  
+  // Apply Sort
+  if (this.sortColumn) {
+    list = [...list].sort((a, b) => {
+      const valA = (a as any)[this.sortColumn];
+      const valB = (b as any)[this.sortColumn];
+      return this.sortDirection === 'asc' 
+        ? strA.localeCompare(strB, undefined, {numeric: true})
+        : strB.localeCompare(strA, undefined, {numeric: true});
+    });
+  }
+  
+  return list;
+}
+```
+
+### Searchable Fields
+
+- **Serie/Code** - Die serial number
+- **Cliente** - Customer name
+- **Medida** - Die measurements
+- **Ubicacion** - Storage location
+
+## Storage Location Management
+
+### Rack Configuration
+
+From `inventory.models.ts:90-108`:
+
+```typescript
+export interface RackConfig {
+  id: string;
+  name: string;
+  type: 'clise' | 'die';
+  levels: RackLevel[];        // Vertical storage levels
+  orientation: 'vertical' | 'horizontal';
+}
+
+export interface RackLevel {
+  levelNumber: number;
+  boxes: RackBox[];           // Storage compartments
+}
+
+export interface RackBox {
+  label: string;              // Box identifier
+  min?: number;               // Size range minimum
+  max?: number;               // Size range maximum
+  items: (CliseItem | DieItem)[];  // Stored tooling
+}
+```
+
+<Info>
+  The rack system supports visual 3D location mapping for rapid tooling retrieval and optimized storage density.
+</Info>
+
+## Tooling Import and Validation
+
+### Data Normalization
+
+From `inventory-die.component.ts:530-538`:
+
+```typescript
+const { valid, conflicts } = this.inventoryService.normalizeDieData(rawData);
+
+// Valid items have required fields
+this.previewData = valid;
+
+// Conflicts flagged for manual review
+this.conflictsData = conflicts;  // Missing serie or cliente
+```
+
+### Import Validation Rules
+
+<Steps>
+  <Step title="Required Fields">
+    - `serie` (Serial Number) - Must be unique
+    - `cliente` (Customer) - Must be specified
+  </Step>
+  
+  <Step title="Conflict Detection">
+    Records missing required fields are flagged as conflicts and highlighted in the preview
+  </Step>
+  
+  <Step title="Manual Resolution">
+    Conflicts can be imported and resolved later through the edit interface
+  </Step>
+</Steps>
+
+## Production Report Integration
+
+### Automatic Usage Updates
+
+From production reports, tooling usage is automatically logged:
+
+```typescript
+// Print report example
+export interface PrintReport {
+  clise: { code: string; status: string };
+  die: { status: string };
+  totalMeters: number;        // Auto-increments mtl_acum
+}
+
+// Die-cut report example
+export interface DiecutReport {
+  dieSeries: string;
+  goodUnits: number;
+  waste: number;
+  dieStatus: 'OK' | 'Desgaste' | 'Dañado';
+}
+```
+
+<CardGroup cols={2}>
+  <Card title="Print Reports" href="/reports/print" icon="print">
+    Updates clise usage and condition from flexo operations
+  </Card>
+  <Card title="Die-Cut Reports" href="/reports/diecut" icon="content-cut">
+    Tracks die performance and wear from cutting operations
+  </Card>
+</CardGroup>
+
+## KPI Dashboard Metrics
+
+From `inventory-die.component.ts:39-61`:
+
+```html
+<!-- Total Troqueles -->
+<span class="text-3xl font-bold">{{ stats.total | number }}</span>
+
+<!-- Disponibles (Available) -->
+<span class="text-3xl font-bold text-white">{{ stats.available | number }}</span>
+
+<!-- En Mantenimiento (Maintenance) -->
+<span class="text-3xl font-bold text-white">{{ stats.maintenance | number }}</span>
+
+<!-- Uso Crítico (Critical) -->
+<span class="text-3xl font-bold text-white">{{ stats.critical | number }}</span>
+```
+
+## Sorting Capabilities
+
+From `inventory-die.component.ts:463-470`:
+
+```typescript
+toggleSort(column: string) {
+  if (this.sortColumn === column) {
+    this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+  } else {
+    this.sortColumn = column;
+    this.sortDirection = 'asc';
+  }
+}
+```
+
+**Sortable Columns:**
+- Medida (Measurement)
+- Ubicacion (Location)
+- Z (Depth)
+- Material
+- Cliente (Customer)
+- Serie (Serial)
+- Estado (Status)
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Preventive Replacement">
+    Replace dies showing **Desgaste** status before they reach **Dañado** to avoid production quality issues and emergency downtime.
+  </Accordion>
+  
+  <Accordion title="Usage Monitoring">
+    Review `mtl_acum` (accumulated meters) regularly against manufacturer recommendations to schedule preventive maintenance.
+  </Accordion>
+  
+  <Accordion title="Storage Organization">
+    Maintain accurate `ubicacion` data to minimize tooling retrieval time during changeovers.
+  </Accordion>
+  
+  <Accordion title="Link Clises and Dies">
+    Always populate `linkedDies` and `linkedClises` arrays to ensure coordinated tooling availability for production orders.
+  </Accordion>
+  
+  <Accordion title="History Documentation">
+    Record all maintenance, repairs, and version changes in the history log for warranty tracking and quality audits.
+  </Accordion>
+</AccordionGroup>
+
+## Related Resources
+
+<CardGroup cols={3}>
+  <Card title="Incident Management" href="/quality/incidents" icon="report-problem">
+    Report tooling failures and track CAPA actions
+  </Card>
+  <Card title="Inventory Management" href="/inventory/overview" icon="inventory">
+    Manage clise and die master data
+  </Card>
+  <Card title="Analytics Reports" href="/analytics/reports" icon="analytics">
+    Analyze tooling utilization and lifecycle costs
+  </Card>
+</CardGroup>

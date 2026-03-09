@@ -1,0 +1,422 @@
+---
+title: 'Print Production'
+description: 'Detailed documentation for the Print production module including activity tracking, tooling management, and KPI monitoring'
+icon: 'print'
+---
+
+The **Print Production** module tracks flexographic printing operations, managing production activities, tooling status, and performance metrics. It provides comprehensive reporting capabilities for shift-based manufacturing with multi-activity tracking.
+
+## Overview
+
+The print production system manages:
+- **Multi-activity tracking** per work order
+- **Tooling status monitoring** (cliché and dies)
+- **Linear meter production** across activities
+- **KPI dashboard** with real-time metrics
+- **Shift-based reporting** with operator accountability
+
+**Component:** `ProductionPrintComponent`  
+**Location:** `src/features/production/production-print.component.ts`
+
+---
+
+## Data Models
+
+### PrintActivity Interface
+
+Represents individual production activities within a report:
+
+<ParamField path="type" type="string" required>
+  Activity type (e.g., "Impresión", "Setup", "Parada - Cambio Bobina")
+</ParamField>
+
+<ParamField path="startTime" type="string" required>
+  Activity start time in HH:mm format
+</ParamField>
+
+<ParamField path="endTime" type="string" required>
+  Activity end time in HH:mm format
+</ParamField>
+
+<ParamField path="meters" type="number" required>
+  Linear meters produced during this activity (0 for non-productive activities)
+</ParamField>
+
+<ParamField path="duration" type="string" optional>
+  Calculated duration string (e.g., "2h 30m")
+</ParamField>
+
+### PrintReport Interface
+
+Main report structure for print production:
+
+<ParamField path="id" type="string" required>
+  Unique report identifier (e.g., "REP-1000")
+</ParamField>
+
+<ParamField path="date" type="Date" required>
+  Report timestamp
+</ParamField>
+
+<ParamField path="ot" type="string" required>
+  Work order number
+</ParamField>
+
+<ParamField path="client" type="string" required>
+  Client name (Razón Social)
+</ParamField>
+
+<ParamField path="product" type="string" required>
+  Product description
+</ParamField>
+
+<ParamField path="machine" type="string" required>
+  Machine name
+</ParamField>
+
+<ParamField path="operator" type="string" required>
+  Operator responsible for the shift
+</ParamField>
+
+<ParamField path="shift" type="string" required>
+  Shift identifier (e.g., "Día - A", "Noche - B")
+</ParamField>
+
+<ParamField path="activities" type="PrintActivity[]" required>
+  Array of production activities
+</ParamField>
+
+<ParamField path="totalMeters" type="number" required>
+  Sum of all meters produced across activities
+</ParamField>
+
+<ParamField path="clise" type="object" required>
+  Cliché tooling status: `{ code: string, status: string }`
+</ParamField>
+
+<ParamField path="die" type="object" required>
+  Die tooling status: `{ status: string }`
+</ParamField>
+
+<ParamField path="observations" type="string">
+  General observations for the report
+</ParamField>
+
+<ParamField path="productionStatus" type="'PARCIAL' | 'TOTAL'" required>
+  Production completion status
+</ParamField>
+
+---
+
+## Activity Types
+
+The system supports the following activity types from `operator-form.component.ts:548`:
+
+```typescript
+printActivities = [
+  'Impresión',
+  'Troquelado',
+  'Setup',
+  'Refrigerio',
+  'Parada - Mto Mecanico',
+  'Parada - Mto Electrico',
+  'Parada - Espera de Material',
+  'Parada - Matizado',
+  'Parada - Espera de VB',
+  'Parada',
+  'Sin Operador',
+  'PARADA - VARIOS'
+];
+```
+
+### Activity Classification
+
+<Tabs>
+  <Tab title="Productive">
+    - **Impresión**: Main printing activity, contributes to meter count
+    - **Troquelado**: Die-cutting during print process
+  </Tab>
+  <Tab title="Setup">
+    - **Setup**: Machine preparation and configuration (0 meters)
+  </Tab>
+  <Tab title="Downtime">
+    - **Parada - Mto Mecanico**: Mechanical maintenance stoppage
+    - **Parada - Mto Electrico**: Electrical maintenance stoppage
+    - **Parada - Espera de Material**: Waiting for material
+    - **Parada - Matizado**: Color matching/adjustment
+    - **Parada - Espera de VB**: Waiting for approval
+    - **Parada - Cambio Bobina**: Roll change
+  </Tab>
+</Tabs>
+
+---
+
+## KPI Metrics
+
+The dashboard displays four key performance indicators (calculated in `production-print.component.ts:427`):
+
+### Total Metros (Mes)
+
+```typescript
+const totalMeters = this.reports.reduce((acc, r) => acc + r.totalMeters, 0);
+```
+
+- Sum of all meters produced in the current period
+- Displayed with comparison to previous month (e.g., "+12% vs mes anterior")
+
+### Velocidad Promedio
+
+```typescript
+const totalHours = this.reports.length * 6;
+const avgSpeed = (totalMeters / (totalHours * 60)) * 5; // m/min
+```
+
+- Average production speed in meters per minute
+- Calculated across all reports with scaling factor
+
+### OTs Completadas
+
+```typescript
+const completedOts = this.reports.filter(r => r.productionStatus === 'TOTAL').length;
+```
+
+- Count of work orders with `TOTAL` production status
+
+### Alertas Herramental
+
+```typescript
+const toolingIssues = this.reports.filter(r => 
+  r.die.status !== 'OK' || r.clise.status !== 'OK'
+).length;
+```
+
+- Number of reports with tooling issues (Desgaste or Dañado)
+
+---
+
+## Tooling Status
+
+### Status Values
+
+Both cliché and die can have the following statuses (`production-print.component.ts:452`):
+
+<Tabs>
+  <Tab title="OK">
+    - **Color**: Emerald (green)
+    - **Meaning**: Tooling in good condition
+    - **Class**: `bg-emerald-500/10 text-emerald-400 border-emerald-500/20`
+  </Tab>
+  <Tab title="Desgaste">
+    - **Color**: Yellow/Amber
+    - **Meaning**: Tooling shows wear, maintenance suggested
+    - **Class**: `bg-yellow-500/10 text-yellow-400 border-yellow-500/20`
+  </Tab>
+  <Tab title="Dañado">
+    - **Color**: Red
+    - **Meaning**: Tooling damaged, requires attention
+    - **Class**: `bg-red-500/10 text-red-400 border-red-500/20`
+  </Tab>
+</Tabs>
+
+### Status Logic
+
+```typescript
+// From production-print.component.ts:395
+const dieStatus = index % 5 === 0 ? 'Desgaste' : 
+                  (index % 15 === 0 ? 'Dañado' : 'OK');
+const cliseStatus = index % 7 === 0 ? 'Desgaste' : 'OK';
+```
+
+---
+
+## Report Workflow
+
+<Steps>
+  <Step title="Access Module">
+    Navigate to operator terminal and select **Impresión** station (ST-01)
+  </Step>
+  
+  <Step title="Select Machine">
+    Choose printing machine from available equipment
+  </Step>
+  
+  <Step title="Search Work Order">
+    Enter OT number or scan barcode. System provides autocomplete suggestions with:
+    - OT number
+    - Client name (Razón Social)
+    - Product description
+    - Order status
+  </Step>
+  
+  <Step title="Add Activities">
+    For each activity during the shift:
+    1. Select activity type from dropdown
+    2. Enter start time (HH:mm)
+    3. Enter end time (HH:mm)
+    4. Enter meters produced (0 for non-productive activities)
+    5. Click **Agregar** to add to list
+    
+    Duration is calculated automatically.
+  </Step>
+  
+  <Step title="Verify Tooling">
+    Check and record status for:
+    - **Cliché (Item)**: Enter code and select status
+    - **Troquel**: Select status
+  </Step>
+  
+  <Step title="Set Production Status">
+    Choose completion status:
+    - **PARCIAL**: Shift closure, work order incomplete
+    - **TOTAL**: Work order fully completed
+  </Step>
+  
+  <Step title="Add Observations">
+    Enter any relevant notes about:
+    - Quality variations
+    - Incidents
+    - Material issues
+    - Next shift handoff information
+  </Step>
+  
+  <Step title="Submit Report">
+    Click **Confirmar y Guardar Reporte** to save.
+    
+    System logs audit entry:
+    ```typescript
+    this.audit.log(
+      this.state.userName(),
+      'Operario',
+      'PRODUCCIÓN',
+      'Reporte Turno',
+      `OT: ${ot}, Máquina: ${machine}, Actividades: [...], Total Mts: ${total}`
+    );
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Duration Calculation
+
+The system calculates activity duration using this algorithm (`operator-form.component.ts:711`):
+
+```typescript
+calculateDuration(start: string, end: string): string {
+  if(!start || !end) return '-';
+  
+  const [h1, m1] = start.split(':').map(Number);
+  const [h2, m2] = end.split(':').map(Number);
+  
+  let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+  if(diff < 0) diff += 24 * 60; // Handle midnight crossing
+  
+  const hours = Math.floor(diff / 60);
+  const mins = diff % 60;
+  
+  return `${hours}h ${mins}m`;
+}
+```
+
+**Features:**
+- Handles midnight crossing (e.g., 23:00 to 01:00)
+- Returns formatted string (e.g., "2h 30m")
+- Returns "-" for invalid input
+
+---
+
+## Report Detail Modal
+
+Clicking a report row opens a detailed modal showing:
+
+### Product Information
+- Client name
+- Product description
+- Machine assigned
+- Operator name
+
+### Tooling Status
+- Cliché code and status badge
+- Die status badge
+- Total meters produced (large display)
+
+### Activities Table
+Columns:
+- **Actividad**: Activity name with status indicator dot
+- **Horario**: Start - End time
+- **Duración**: Calculated duration
+- **Metros**: Linear meters (or "-" for non-productive)
+
+Footer shows **Total Producción** sum.
+
+### Observations
+General notes displayed in yellow-highlighted section.
+
+### Actions
+- **Cerrar**: Close modal
+- **Imprimir PDF**: Generate PDF report
+
+---
+
+## Search and Filtering
+
+The reports list supports real-time search (`production-print.component.ts:417`):
+
+```typescript
+get filteredReports() {
+  const term = this.searchTerm.toLowerCase();
+  return this.reports.filter(r => 
+    r.ot.toLowerCase().includes(term) ||
+    r.machine.toLowerCase().includes(term) ||
+    r.operator.toLowerCase().includes(term) ||
+    r.client.toLowerCase().includes(term)
+  );
+}
+```
+
+**Searchable fields:**
+- OT number
+- Machine name
+- Operator name
+- Client name
+
+---
+
+## Production Status Badges
+
+```typescript
+// Template: production-print.component.ts:162
+<span [ngClass]="{
+  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20': 
+    report.productionStatus === 'TOTAL',
+  'bg-amber-500/10 text-amber-400 border-amber-500/20': 
+    report.productionStatus === 'PARCIAL'
+}">
+  {{ report.productionStatus }}
+</span>
+```
+
+- **TOTAL**: Green badge, indicates completed work order
+- **PARCIAL**: Amber badge, indicates partial completion or shift closure
+
+---
+
+## Best Practices
+
+<Check>Record activities immediately during the shift for accuracy</Check>
+<Check>Always verify and update tooling status after each run</Check>
+<Check>Enter meter counts from machine counters, not estimates</Check>
+<Check>Document any quality variations in observations</Check>
+<Check>Use PARCIAL status for shift changes, TOTAL only when OT is complete</Check>
+<Check>Include handoff notes for next shift in observations</Check>
+
+<Warning>Ensure cliché and die status is recorded before submitting report</Warning>
+<Warning>Verify total meters match expected production for the OT</Warning>
+
+---
+
+## Related Modules
+
+- [Operator Mode](/production/operator-mode) - Full-screen operator interface
+- [Diecut Production](/production/diecut) - Die-cutting operations
+- [Analytics Reports](/analytics/reports) - Comprehensive reporting module

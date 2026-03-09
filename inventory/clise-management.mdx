@@ -1,0 +1,380 @@
+---
+title: Cliché (Clisé) Management
+description: Flexographic printing plate inventory with usage tracking and maintenance lifecycle
+---
+
+## Overview
+
+Clisés are flexographic printing plates that transfer ink to substrates during production. The P.FLEX system tracks their complete lifecycle from creation through retirement.
+
+<Frame>
+  <img src="https://via.placeholder.com/800x400/1e293b/ffffff?text=Clise+Inventory+Interface" alt="Clisé Management Interface" />
+</Frame>
+
+## CliseItem Data Model
+
+Complete interface definition from `inventory.models.ts:16-43`:
+
+<Expandable title="CliseItem Interface (TypeScript)">
+  ```typescript
+  export interface CliseItem {
+    id: string;
+    item: string;                  // Unique code/identifier
+    ubicacion: string;             // Physical warehouse location
+    descripcion: string;           // Product description
+    cliente: string;               // Customer name
+    z: string;                     // Cylinder gear teeth (Z-value)
+    estandar: string;
+    medidas: string;
+    troquel: string;               // Associated die reference
+    linkedDies: string[];          // Explicitly linked die IDs
+    ancho: number | null;          // Width in mm
+    avance: number | null;         // Advance/repeat length in mm
+    col: number | null;            // Number of columns
+    rep: number | null;            // Number of repetitions
+    n_clises: number | null;       // Cliché version number
+    espesor: string;               // Thickness/gauge
+    ingreso: string;               // Entry date
+    obs: string;                   // Observations/notes
+    maq: string;                   // Machine assignment
+    colores: string;               // Color names (comma-separated)
+    colorUsage?: CliseColorUsage[];// Detailed color meter breakdown
+    n_ficha_fler: string;          // FLER technical sheet reference
+    mtl_acum: number | null;       // Accumulated meters used
+    imagen?: string;               // Preview image URL
+    history: CliseHistory[];       // Operation history log
+    hasConflict?: boolean;         // Import validation flag
+  }
+  ```
+</Expandable>
+
+### Field Descriptions
+
+<ResponseField name="item" type="string" required>
+  Unique identifier code for the cliché (e.g., "CL-2045-A")
+</ResponseField>
+
+<ResponseField name="ubicacion" type="string" required>
+  Physical location in warehouse. Examples:
+  - `1150` → Rack CL-1, range 1136-1190
+  - `A-01` → Zona A, position 01
+  - Numeric values auto-map to visual rack layout
+</ResponseField>
+
+<ResponseField name="cliente" type="string" required>
+  Customer name (e.g., "Coca Cola", "Nestlé")
+</ResponseField>
+
+<ResponseField name="z" type="string">
+  Cylinder gear teeth count. Used for die compatibility matching. Common values: "280", "360", "420"
+</ResponseField>
+
+<ResponseField name="ancho" type="number">
+  Print width in millimeters
+</ResponseField>
+
+<ResponseField name="avance" type="number">
+  Repeat length (advance) in millimeters. Critical for production setup.
+</ResponseField>
+
+<ResponseField name="troquel" type="string">
+  Legacy die reference field (text-based). Modern system uses `linkedDies` array for structured references.
+</ResponseField>
+
+<ResponseField name="linkedDies" type="string[]">
+  Array of die IDs explicitly linked to this cliché. Enables production planning and die compatibility warnings.
+  
+  ```typescript
+  linkedDies: ["die-abc123", "die-def456"]
+  ```
+</ResponseField>
+
+<ResponseField name="mtl_acum" type="number">
+  **Critical maintenance field**: Accumulated meters of substrate printed with this cliché.
+  
+  - **Below 500,000m**: Status = OK
+  - **Above 500,000m**: Status = MANT (maintenance required)
+  - Triggers alerts and maintenance scheduling
+</ResponseField>
+
+<ResponseField name="colorUsage" type="CliseColorUsage[]">
+  Detailed breakdown of meters printed per color:
+  
+  ```typescript
+  export interface CliseColorUsage {
+    name: string;   // Color name (e.g., "Cyan", "Magenta")
+    meters: number; // Meters printed with this color
+  }
+  ```
+  
+  Used for color-specific maintenance planning.
+</ResponseField>
+
+<ResponseField name="history" type="CliseHistory[]">
+  Complete audit trail of operations. See History Tracking section below.
+</ResponseField>
+
+<ResponseField name="hasConflict" type="boolean">
+  Import validation flag. Set to `true` when required fields (item, cliente) are missing during Excel import.
+</ResponseField>
+
+## History Tracking
+
+Every operation is logged in the `history` array:
+
+```typescript
+export interface CliseHistory {
+  date: string;         // ISO date string
+  type: 'Producción' | 'Mantenimiento' | 'Reparación' | 
+        'Cambio Versión' | 'Creación' | 'Baja' | 'Otro';
+  description: string;  // Operation details
+  user: string;         // User who performed action
+  machine?: string;     // Machine used (if applicable)
+  amount?: number;      // Meters printed (for production entries)
+}
+```
+
+### Example History Entry
+
+```typescript
+{
+  date: "2024-03-15T14:30:00Z",
+  type: "Producción",
+  description: "Orden 45001 - Etiquetas 500ml",
+  user: "jperez",
+  machine: "GIDUE-320",
+  amount: 12500
+}
+```
+
+Reference: `inventory.models.ts:2-9`
+
+## KPI Statistics
+
+The component calculates real-time inventory metrics:
+
+```typescript
+// inventory-clise.component.ts stats calculation
+get stats() {
+  const total = this.cliseItems.length;
+  const alert = this.cliseItems.filter(i => 
+    i.hasConflict || (i.mtl_acum || 0) >= 500000
+  ).length;
+  const active = this.cliseItems.filter(i => 
+    !i.hasConflict && (i.mtl_acum || 0) < 500000
+  ).length;
+  const totalUsage = this.cliseItems.reduce((sum, i) => 
+    sum + (i.mtl_acum || 0), 0
+  );
+  return { total, alert, active, totalUsage };
+}
+```
+
+Displayed as dashboard cards in the UI.
+
+## Excel Import
+
+Flexible column mapping handles diverse spreadsheet formats:
+
+```typescript
+// inventory.service.ts:183-193
+readonly CLISE_MAPPING = {
+  'item': ['item', 'codigo', 'code', 'id', 'clise'],
+  'ubicacion': ['ubicación', 'ubicacion', 'location'],
+  'descripcion': ['descripción', 'descripcion', 'description'],
+  'cliente': ['cliente', 'client'],
+  'z': ['z', 'dientes'],
+  'ancho': ['ancho', 'width'],
+  'avance': ['avance', 'length'],
+  'ingreso': ['ingreso', 'fecha ingreso'],
+  'mtl_acum': ['mtl acum', 'mtl. acum.', 'metros acumulados']
+};
+```
+
+### Import Workflow
+
+<Steps>
+  <Step title="Select Excel File">
+    Click **Importar** button and choose `.xlsx`, `.xls`, or `.csv` file
+  </Step>
+  
+  <Step title="Preview & Validation">
+    System displays preview modal showing:
+    - Valid records (green badge)
+    - Conflicts requiring review (red badge, animated pulse)
+  </Step>
+  
+  <Step title="Confirm Import">
+    Click **Importar Todo** to add all records. Conflicted items are flagged with `hasConflict: true` for manual correction.
+  </Step>
+</Steps>
+
+<Warning>
+  Records missing `item` or `cliente` will be flagged as conflicts but still imported. Review and correct these items immediately after import.
+</Warning>
+
+## Die Linking
+
+Clisés can be linked to compatible dies for production planning:
+
+<Accordion title="Manual Die Linking">
+  In edit mode, use the die search dropdown:
+  
+  ```typescript
+  // Search dies by serie, medida, or z-value
+  searchDies(term: string) {
+    this.dieSearchResults = this.inventoryService.dieItems
+      .filter(d => 
+        d.serie.toLowerCase().includes(term.toLowerCase()) ||
+        d.medida.toLowerCase().includes(term.toLowerCase()) ||
+        d.z === this.currentClise.z
+      )
+      .slice(0, 10);
+  }
+  
+  // Add die to linkedDies array
+  addLinkedDie(die: DieItem) {
+    if (!this.currentClise.linkedDies.includes(die.id)) {
+      this.currentClise.linkedDies.push(die.id);
+    }
+    this.dieSearchTerm = '';
+    this.dieSearchResults = [];
+  }
+  ```
+  
+  Reference: `inventory-clise.component.ts:420-438`
+</Accordion>
+
+<Accordion title="Automatic Z-Value Matching">
+  System auto-suggests dies with matching Z-values:
+  
+  ```typescript
+  get compatibleDies() {
+    const linkedIds = this.currentClise.linkedDies || [];
+    const manual = this.allDies.filter(d => linkedIds.includes(d.id));
+    
+    // Also include dies with matching Z
+    const autoMatched = this.allDies.filter(d => 
+      d.z === this.currentClise.z && !linkedIds.includes(d.id)
+    );
+    
+    return [...manual, ...autoMatched];
+  }
+  ```
+</Accordion>
+
+## CRUD Operations
+
+### Add New Cliché
+
+```typescript
+addClises(items: CliseItem[]) {
+  this._cliseItems.next([...items, ...this.cliseItems]);
+  this.mapItemsToLayout();  // Update rack visualization
+  this.audit.log(
+    this.state.userName(), 
+    this.state.userRole(), 
+    'INVENTARIO', 
+    'Alta Clisés', 
+    `Se agregaron ${items.length} clichés al inventario.`
+  );
+}
+```
+
+Reference: `inventory.service.ts:237-241`
+
+### Update Existing Cliché
+
+```typescript
+updateClise(item: CliseItem) {
+  const list = this.cliseItems;
+  const idx = list.findIndex(i => i.id === item.id);
+  if (idx !== -1) {
+    list[idx] = item;
+    this._cliseItems.next([...list]);
+    this.mapItemsToLayout();
+    this.audit.log(
+      this.state.userName(), 
+      this.state.userRole(), 
+      'INVENTARIO', 
+      'Editar Clisé', 
+      `Se modificó el cliché ${item.item}.`
+    );
+  }
+}
+```
+
+Reference: `inventory.service.ts:243-252`
+
+<Tip>
+  All CRUD operations trigger audit logs via `AuditService` for compliance tracking.
+</Tip>
+
+## UI Component
+
+The `InventoryCliseComponent` provides:
+
+- **Search/Filter**: Real-time text search across item, cliente, descripcion
+- **Pagination**: 20 items per page (configurable via `pageSize`)
+- **Sorting**: Click column headers to sort
+- **Detail Modal**: Double-click row or click eye icon
+- **Edit Mode**: Toggle between read-only and edit modes
+- **Image Preview**: Visual identification using `imagen` field or placeholder
+
+### Modal Sections
+
+1. **Información General**: Basic item data (cliente, item, fecha ingreso)
+2. **Especificaciones Técnicas**: Dimensions, Z-value, colors, FLER reference
+3. **Métricas de Uso**: Accumulated meters, color usage breakdown with progress bars
+4. **Troqueles Compatibles**: Linked dies with search/add functionality
+5. **Registro de Operaciones**: Full history table with date, type, user, description
+6. **Observaciones**: Yellow-highlighted notes field
+7. **Ubicación Física**: Rack visualization with editable position
+
+Reference: `inventory-clise.component.ts:216-600`
+
+## Maintenance Alerts
+
+System automatically flags clisés requiring maintenance:
+
+```typescript
+// Status badge logic (line 170-172)
+<span *ngIf="!item.hasConflict && (item.mtl_acum || 0) < 500000" 
+      class="bg-emerald-500/10 text-emerald-400">OK</span>
+
+<span *ngIf="!item.hasConflict && (item.mtl_acum || 0) >= 500000" 
+      class="bg-amber-500/10 text-amber-400">MANT.</span>
+
+<span *ngIf="item.hasConflict" 
+      class="bg-red-500/10 text-red-400 animate-pulse">REVISAR</span>
+```
+
+<Note>
+  The 500,000 meter threshold is configurable. Adjust in the status calculation logic as needed for your production requirements.
+</Note>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Regular Meter Updates" icon="gauge">
+    Update `mtl_acum` after every production run to ensure accurate maintenance scheduling
+  </Card>
+  
+  <Card title="Color Usage Tracking" icon="palette">
+    Populate `colorUsage` array for multi-color clisés to identify high-wear colors
+  </Card>
+  
+  <Card title="History Logging" icon="clock">
+    Add history entries for all operations (production, maintenance, repairs) to maintain compliance
+  </Card>
+  
+  <Card title="Die Linking" icon="link">
+    Link compatible dies to enable production planning and reduce setup time
+  </Card>
+</CardGroup>
+
+## Related Topics
+
+- [Die Management](./die-management) - Compatible cutting tools
+- [Rack Layout](./rack-layout) - Physical location visualization
+- [Stock Control](./stock-control) - Finished goods using these clisés

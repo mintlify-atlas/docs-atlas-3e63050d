@@ -1,0 +1,597 @@
+---
+title: 'AuditService'
+description: 'Audit logging service for tracking user actions and system events'
+---
+
+## Overview
+
+The `AuditService` provides a centralized audit logging system for tracking all user actions and system events in the P.FLEX application. It maintains an in-memory log using Angular signals for reactive UI updates.
+
+**Location:** `src/services/audit.service.ts`
+
+**Provider:** Root (singleton)
+
+## Properties
+
+<ResponseField name="logs" type="Signal<AuditLog[]>">
+  Signal containing all audit log entries, sorted with newest first. Initialized with a system startup entry.
+</ResponseField>
+
+## Types
+
+### AuditLog Interface
+
+```typescript
+interface AuditLog {
+  id: string;          // Unique identifier (9-character random string)
+  timestamp: Date;     // Date/time of the event
+  user: string;        // User who performed the action
+  role: string;        // User's role at time of action
+  module: string;      // Module/section (uppercase)
+  action: string;      // Action description
+  details: string;     // Additional details about the action
+  ip: string;          // Simulated IP address
+}
+```
+
+**Common Modules:**
+- `SISTEMA` - System events
+- `ACCESO` - Authentication events
+- `OPERACIONES` - Operational changes
+- `INVENTARIO` - Inventory operations
+- `STOCK PT` - Finished goods stock
+- `ADMIN` - Administrative actions
+- `ORDENES` - Work order operations
+
+## Methods
+
+### log
+
+Creates and stores a new audit log entry.
+
+```typescript
+log(user: string, role: string, module: string, action: string, details: string = ''): void
+```
+
+<ParamField path="user" type="string" required>
+  Name of the user performing the action. Uses 'Desconocido' if empty/null.
+</ParamField>
+
+<ParamField path="role" type="string" required>
+  Role of the user at the time of action. Uses '---' if empty/null.
+</ParamField>
+
+<ParamField path="module" type="string" required>
+  Module or section where action occurred. Automatically converted to uppercase.
+</ParamField>
+
+<ParamField path="action" type="string" required>
+  Brief description of the action (e.g., 'Inicio de Sesión', 'Crear Usuario').
+</ParamField>
+
+<ParamField path="details" type="string">
+  Optional detailed description of the action. Defaults to empty string.
+</ParamField>
+
+**Behavior:**
+- Generates unique 9-character ID using base36 encoding
+- Sets timestamp to current date/time
+- Converts module to uppercase
+- Generates simulated IP address (192.168.1.1-254)
+- Prepends new entry to logs array (newest first)
+- Logs to browser console with '[AUDIT]' prefix
+
+<CodeGroup>
+```typescript Example: Basic Usage
+import { inject } from '@angular/core';
+import { AuditService } from './services/audit.service';
+
+const audit = inject(AuditService);
+
+// Log a user login
+audit.log(
+  'Juan Perez',
+  'Supervisor',
+  'ACCESO',
+  'Inicio de Sesión',
+  'Usuario jperez inició sesión en Turno Día.'
+);
+
+// Log a system configuration change
+audit.log(
+  'Carlos Admin',
+  'Sistemas',
+  'ADMIN',
+  'Configuración',
+  'Se actualizaron los parámetros globales del sistema.'
+);
+
+// Log inventory operation
+audit.log(
+  'Maria Garcia',
+  'Jefatura',
+  'INVENTARIO',
+  'Alta Clisés',
+  'Se agregaron 15 clichés al inventario.'
+);
+```
+</CodeGroup>
+
+<CodeGroup>
+```typescript Example: Automated Logging in Service
+import { Injectable, inject } from '@angular/core';
+import { AuditService } from './audit.service';
+import { StateService } from './state.service';
+
+@Injectable({ providedIn: 'root' })
+export class OrderService {
+  private audit = inject(AuditService);
+  private state = inject(StateService);
+  
+  createOrder(orderData: any) {
+    // ... create order logic
+    
+    // Log the action
+    this.audit.log(
+      this.state.userName(),
+      this.state.userRole(),
+      'ORDENES',
+      'Crear OT',
+      `Se creó la orden de trabajo ${orderData.ot} para ${orderData.client}`
+    );
+  }
+  
+  updateOrderStatus(ot: string, newStatus: string) {
+    // ... update logic
+    
+    this.audit.log(
+      this.state.userName(),
+      this.state.userRole(),
+      'ORDENES',
+      'Cambio de Estado',
+      `OT ${ot} cambió a estado: ${newStatus}`
+    );
+  }
+}
+```
+</CodeGroup>
+
+## Usage Examples
+
+### Display Audit Log in Component
+
+```typescript
+import { Component, inject } from '@angular/core';
+import { AuditService } from './services/audit.service';
+import { DatePipe } from '@angular/common';
+
+@Component({
+  selector: 'app-audit-log',
+  standalone: true,
+  imports: [DatePipe],
+  template: `
+    <div class="audit-log">
+      <h2>Registro de Auditoría</h2>
+      
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha/Hora</th>
+            <th>Usuario</th>
+            <th>Rol</th>
+            <th>Módulo</th>
+            <th>Acción</th>
+            <th>Detalles</th>
+            <th>IP</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (log of auditService.logs(); track log.id) {
+            <tr>
+              <td>{{ log.timestamp | date:'short' }}</td>
+              <td>{{ log.user }}</td>
+              <td>{{ log.role }}</td>
+              <td><span class="module-badge">{{ log.module }}</span></td>
+              <td>{{ log.action }}</td>
+              <td>{{ log.details }}</td>
+              <td>{{ log.ip }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      
+      @if (auditService.logs().length === 0) {
+        <p>No hay registros de auditoría.</p>
+      }
+    </div>
+  `,
+  styles: [`
+    .audit-log {
+      padding: 20px;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    th, td {
+      padding: 8px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    
+    th {
+      background-color: #f5f5f5;
+      font-weight: bold;
+    }
+    
+    .module-badge {
+      padding: 4px 8px;
+      border-radius: 4px;
+      background-color: #e3f2fd;
+      font-size: 0.85em;
+      font-weight: 500;
+    }
+  `]
+})
+export class AuditLogComponent {
+  auditService = inject(AuditService);
+}
+```
+
+### Filter and Search Audit Logs
+
+```typescript
+import { Component, inject, signal, computed } from '@angular/core';
+import { AuditService, AuditLog } from './services/audit.service';
+
+@Component({
+  selector: 'app-audit-search',
+  template: `
+    <div class="audit-search">
+      <h2>Búsqueda de Auditoría</h2>
+      
+      <div class="filters">
+        <input 
+          type="text" 
+          [(ngModel)]="searchTerm"
+          (input)="updateSearch($event)"
+          placeholder="Buscar usuario, acción, detalles..."
+        >
+        
+        <select [(ngModel)]="selectedModule" (change)="updateModule($event)">
+          <option value="">Todos los módulos</option>
+          <option value="ACCESO">Acceso</option>
+          <option value="ADMIN">Admin</option>
+          <option value="INVENTARIO">Inventario</option>
+          <option value="OPERACIONES">Operaciones</option>
+          <option value="ORDENES">Órdenes</option>
+          <option value="STOCK PT">Stock PT</option>
+        </select>
+        
+        <input 
+          type="date" 
+          [(ngModel)]="filterDate"
+          (change)="updateDate($event)"
+        >
+      </div>
+      
+      <p>Mostrando {{ filteredLogs().length }} de {{ auditService.logs().length }} registros</p>
+      
+      <div class="log-list">
+        @for (log of filteredLogs(); track log.id) {
+          <div class="log-entry">
+            <div class="log-header">
+              <span class="timestamp">{{ log.timestamp | date:'medium' }}</span>
+              <span class="module">{{ log.module }}</span>
+            </div>
+            <div class="log-body">
+              <strong>{{ log.action }}</strong>
+              <p>{{ log.details }}</p>
+              <small>{{ log.user }} ({{ log.role }}) - {{ log.ip }}</small>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  `
+})
+export class AuditSearchComponent {
+  auditService = inject(AuditService);
+  
+  searchTerm = signal<string>('');
+  selectedModule = signal<string>('');
+  filterDate = signal<string>('');
+  
+  filteredLogs = computed(() => {
+    let logs = this.auditService.logs();
+    
+    // Filter by search term
+    const term = this.searchTerm().toLowerCase();
+    if (term) {
+      logs = logs.filter(log => 
+        log.user.toLowerCase().includes(term) ||
+        log.action.toLowerCase().includes(term) ||
+        log.details.toLowerCase().includes(term)
+      );
+    }
+    
+    // Filter by module
+    const module = this.selectedModule();
+    if (module) {
+      logs = logs.filter(log => log.module === module);
+    }
+    
+    // Filter by date
+    const date = this.filterDate();
+    if (date) {
+      const filterDate = new Date(date);
+      logs = logs.filter(log => {
+        const logDate = new Date(log.timestamp);
+        return logDate.toDateString() === filterDate.toDateString();
+      });
+    }
+    
+    return logs;
+  });
+  
+  updateSearch(event: any) {
+    this.searchTerm.set(event.target.value);
+  }
+  
+  updateModule(event: any) {
+    this.selectedModule.set(event.target.value);
+  }
+  
+  updateDate(event: any) {
+    this.filterDate.set(event.target.value);
+  }
+}
+```
+
+### Export Audit Logs
+
+```typescript
+import { inject } from '@angular/core';
+import { AuditService } from './services/audit.service';
+
+class AuditExportService {
+  auditService = inject(AuditService);
+  
+  exportToCSV() {
+    const logs = this.auditService.logs();
+    
+    // CSV header
+    const headers = ['ID', 'Timestamp', 'User', 'Role', 'Module', 'Action', 'Details', 'IP'];
+    
+    // CSV rows
+    const rows = logs.map(log => [
+      log.id,
+      log.timestamp.toISOString(),
+      log.user,
+      log.role,
+      log.module,
+      log.action,
+      log.details,
+      log.ip
+    ]);
+    
+    // Build CSV content
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+    
+    // Download file
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `audit-log-${new Date().toISOString()}.csv`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  }
+  
+  exportToJSON() {
+    const logs = this.auditService.logs();
+    const json = JSON.stringify(logs, null, 2);
+    
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `audit-log-${new Date().toISOString()}.json`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  }
+}
+```
+
+### Audit Statistics Component
+
+```typescript
+import { Component, inject, computed } from '@angular/core';
+import { AuditService } from './services/audit.service';
+
+@Component({
+  selector: 'app-audit-stats',
+  template: `
+    <div class="audit-stats">
+      <h2>Estadísticas de Auditoría</h2>
+      
+      <div class="stats-grid">
+        <div class="stat-card">
+          <h3>Total de Eventos</h3>
+          <p class="stat-number">{{ totalLogs() }}</p>
+        </div>
+        
+        <div class="stat-card">
+          <h3>Usuarios Activos</h3>
+          <p class="stat-number">{{ uniqueUsers() }}</p>
+        </div>
+        
+        <div class="stat-card">
+          <h3>Eventos Hoy</h3>
+          <p class="stat-number">{{ logsToday() }}</p>
+        </div>
+      </div>
+      
+      <div class="module-breakdown">
+        <h3>Eventos por Módulo</h3>
+        @for (stat of moduleStats(); track stat.module) {
+          <div class="module-stat">
+            <span>{{ stat.module }}</span>
+            <span>{{ stat.count }} eventos</span>
+          </div>
+        }
+      </div>
+      
+      <div class="recent-activity">
+        <h3>Actividad Reciente</h3>
+        @for (log of recentLogs(); track log.id) {
+          <div class="activity-item">
+            <strong>{{ log.user }}</strong> - {{ log.action }}
+            <small>{{ log.timestamp | date:'short' }}</small>
+          </div>
+        }
+      </div>
+    </div>
+  `
+})
+export class AuditStatsComponent {
+  auditService = inject(AuditService);
+  
+  totalLogs = computed(() => this.auditService.logs().length);
+  
+  uniqueUsers = computed(() => {
+    const users = new Set(this.auditService.logs().map(log => log.user));
+    return users.size;
+  });
+  
+  logsToday = computed(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return this.auditService.logs().filter(log => {
+      const logDate = new Date(log.timestamp);
+      logDate.setHours(0, 0, 0, 0);
+      return logDate.getTime() === today.getTime();
+    }).length;
+  });
+  
+  moduleStats = computed(() => {
+    const counts: Record<string, number> = {};
+    
+    this.auditService.logs().forEach(log => {
+      counts[log.module] = (counts[log.module] || 0) + 1;
+    });
+    
+    return Object.entries(counts)
+      .map(([module, count]) => ({ module, count }))
+      .sort((a, b) => b.count - a.count);
+  });
+  
+  recentLogs = computed(() => {
+    return this.auditService.logs().slice(0, 10);
+  });
+}
+```
+
+## Implementation Notes
+
+### Data Persistence
+
+The current implementation stores logs in memory only. They will be lost on page refresh. For production:
+
+```typescript
+import { Injectable, signal, effect } from '@angular/core';
+
+@Injectable({ providedIn: 'root' })
+export class AuditService {
+  readonly logs = signal<AuditLog[]>(this.loadLogsFromStorage());
+  
+  constructor() {
+    // Auto-save to localStorage on changes
+    effect(() => {
+      localStorage.setItem('auditLogs', JSON.stringify(this.logs()));
+    });
+  }
+  
+  private loadLogsFromStorage(): AuditLog[] {
+    const stored = localStorage.getItem('auditLogs');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // Convert timestamp strings back to Date objects
+      return parsed.map((log: any) => ({
+        ...log,
+        timestamp: new Date(log.timestamp)
+      }));
+    }
+    return [this.getInitialLog()];
+  }
+  
+  private getInitialLog(): AuditLog {
+    return {
+      id: 'log-init',
+      timestamp: new Date(Date.now() - 3600000),
+      user: 'Sistema',
+      role: 'System',
+      module: 'SISTEMA',
+      action: 'Inicio de Servicios',
+      details: 'El sistema se ha iniciado correctamente.',
+      ip: 'localhost'
+    };
+  }
+}
+```
+
+### Backend Integration
+
+For production, send logs to backend:
+
+```typescript
+import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+
+@Injectable({ providedIn: 'root' })
+export class AuditService {
+  private http = inject(HttpClient);
+  
+  log(user: string, role: string, module: string, action: string, details: string = '') {
+    const newEntry: AuditLog = {
+      id: Math.random().toString(36).substr(2, 9),
+      timestamp: new Date(),
+      user: user || 'Desconocido',
+      role: role || '---',
+      module: module.toUpperCase(),
+      action: action,
+      details: details,
+      ip: this.getClientIP()
+    };
+    
+    // Add to local state
+    this.logs.update(currentLogs => [newEntry, ...currentLogs]);
+    
+    // Send to backend (fire and forget)
+    this.http.post('/api/audit/log', newEntry).subscribe({
+      error: (err) => console.error('Failed to send audit log:', err)
+    });
+  }
+  
+  private getClientIP(): string {
+    // Get real IP from backend or use placeholder
+    return 'pending';
+  }
+}
+```
+
+## Notes
+
+- Logs are stored with newest first for efficient recent activity display
+- IP addresses are simulated (192.168.1.1-254) since browsers cannot access real client IP
+- Module names are automatically uppercased for consistency
+- Empty/null user defaults to 'Desconocido', empty/null role defaults to '---'
+- All logs are also output to browser console with '[AUDIT]' prefix
+- ID generation uses base36 encoding for short, URL-safe identifiers
+- Initial log entry demonstrates system startup tracking

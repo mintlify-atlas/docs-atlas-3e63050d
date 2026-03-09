@@ -1,0 +1,348 @@
+---
+title: 'Machine Configuration'
+description: 'Configure and manage industrial machinery in the P.FLEX system'
+icon: 'cog'
+---
+
+## Overview
+
+The Machine Configuration module manages all industrial equipment across the production facility. Each machine represents a physical asset that can be tracked, monitored, and assigned to work orders.
+
+## Machine Data Model
+
+The `Machine` interface defines the structure of machine records:
+
+<ParamField path="id" type="string" required>
+  Unique identifier for the machine
+</ParamField>
+
+<ParamField path="code" type="string" required>
+  Machine serial number or asset code (e.g., "IMP-01", "TRQ-05")
+</ParamField>
+
+<ParamField path="name" type="string" required>
+  Display name of the machine (e.g., "SUPERPRINT 1", "PLANA 3")
+</ParamField>
+
+<ParamField path="type" type="string" required>
+  Machine category. Valid values:
+  - `Impresión` - Printing equipment
+  - `Troquelado` - Die-cutting equipment
+  - `Acabado` - Finishing equipment
+</ParamField>
+
+<ParamField path="area" type="string" required>
+  Physical location/production area (e.g., "Nave A", "Nave B", "Nave C", "Nave D")
+</ParamField>
+
+<ParamField path="status" type="string" required>
+  Current operational status:
+  - `Operativa` - Machine is operational and available
+  - `Mantenimiento` - Under maintenance
+  - `Detenida` - Stopped/offline
+  - `Sin Operador` - No operator assigned
+</ParamField>
+
+<ParamField path="active" type="boolean" required>
+  Whether the machine is active in the system (`true` = active, `false` = retired)
+</ParamField>
+
+## Machine Types
+
+### Impresión (Printing)
+
+Flexographic and digital printing equipment:
+
+```typescript
+// Source: state.service.ts:70-78
+{ id: 'p1', code: 'IMP-01', name: 'SUPERPRINT 1', 
+  type: 'Impresión', area: 'Nave A', status: 'Operativa', active: true },
+{ id: 'p2', code: 'IMP-02', name: 'SUPERPRINT 2', 
+  type: 'Impresión', area: 'Nave A', status: 'Operativa', active: true },
+{ id: 'p5', code: 'IMP-05', name: 'MARK ANDY 4120', 
+  type: 'Impresión', area: 'Nave B', status: 'Operativa', active: true }
+```
+
+<Card title="Printing Equipment" icon="print">
+  **Fleet**: 9 printing machines across Nave A and Nave B
+  
+  **Models**: SUPERPRINT, SUPERFLEX, MARK ANDY, EVOLUTION, REINAFLEX
+  
+  **Icon**: `print` (blue color scheme)
+</Card>
+
+### Troquelado (Die-Cutting)
+
+Die-cutting and finishing equipment:
+
+```typescript
+// Source: state.service.ts:80-92
+{ id: 'd1', code: 'TRQ-01', name: 'PLANA 1', 
+  type: 'Troquelado', area: 'Nave C', status: 'Operativa', active: true },
+{ id: 'd7', code: 'TRQ-07', name: 'MARK ANDY 830-1', 
+  type: 'Troquelado', area: 'Nave C', status: 'Operativa', active: true }
+```
+
+<Card title="Die-Cutting Equipment" icon="scissors">
+  **Fleet**: 12 die-cutting machines in Nave C
+  
+  **Models**: PLANA (1-6), MARK ANDY 830, FOCUS, MASTER, DK-320, MAQUIFLEX
+  
+  **Icon**: `content_cut` (purple color scheme)
+</Card>
+
+### Acabado (Finishing)
+
+Rewinding and finishing equipment:
+
+```typescript
+// Source: state.service.ts:93-106
+{ id: 'r1', code: 'RBB-01', name: 'REBOBINADORA 1', 
+  type: 'Acabado', area: 'Nave D', status: 'Operativa', active: true },
+{ id: 'r9', code: 'RBB-09', name: 'ROTOFLEX', 
+  type: 'Acabado', area: 'Nave D', status: 'Operativa', active: true }
+```
+
+<Card title="Finishing Equipment" icon="arrows-rotate">
+  **Fleet**: 13 finishing machines in Nave D
+  
+  **Models**: REBOBINADORA (1-8), ROTOFLEX, REB EVO, BGM, BLISTER (1-2)
+  
+  **Icon**: `sync` (orange color scheme)
+</Card>
+
+## Machine Operations
+
+### Adding a Machine
+
+Create new machine records using `addMachine()`:
+
+```typescript
+// Source: admin.service.ts:61-73
+addMachine(machine: Partial<Machine>) {
+  const newMachine: Machine = {
+    id: Math.random().toString(36).substr(2, 9),
+    code: machine.code || '',
+    name: machine.name || '',
+    type: machine.type || 'Impresión',
+    area: machine.area || '',
+    status: machine.status || 'Operativa',
+    active: machine.active ?? true
+  };
+  this.state.adminMachines.update(machines => [...machines, newMachine]);
+  this.audit.log(this.state.userName(), this.state.userRole(), 'ADMIN', 
+    'Crear Máquina', `Máquina registrada: ${newMachine.name}`);
+}
+```
+
+<Steps>
+  <Step title="Open Machine Modal">
+    Click "Nueva Máquina" or the add placeholder card
+  </Step>
+  
+  <Step title="Enter Machine Details">
+    Fill in required information:
+    - **Name**: Machine model/identifier (e.g., "SUPERPRINT 3")
+    - **Serial Number**: Asset code (e.g., "IMP-10")
+    - **Area**: Physical location (e.g., "Nave A")
+    - **Type**: Select from Impresión, Troquelado, or Acabado
+  </Step>
+  
+  <Step title="Configure IoT Parameters (Optional)">
+    Enable sensor monitoring:
+    - Thermal sensors for temperature monitoring
+    - Load sensors for capacity tracking
+  </Step>
+  
+  <Step title="Save Machine">
+    Click "Registrar Máquina" to add to the system
+  </Step>
+</Steps>
+
+### Updating Machine Status
+
+Modify machine information using `updateMachine()`:
+
+```typescript
+// Source: admin.service.ts:75-78
+updateMachine(updatedMachine: Machine) {
+  this.state.adminMachines.update(machines => 
+    machines.map(m => m.id === updatedMachine.id ? updatedMachine : m)
+  );
+  this.audit.log(this.state.userName(), this.state.userRole(), 'ADMIN', 
+    'Actualizar Máquina', 
+    `Máquina actualizada: ${updatedMachine.name} - Estado: ${updatedMachine.status}`);
+}
+```
+
+Common updates include:
+- Changing machine status (Operativa → Mantenimiento)
+- Updating physical location
+- Modifying machine name
+- Adjusting IoT sensor configuration
+
+### Deleting a Machine
+
+Remove machine records using `deleteMachine()`:
+
+```typescript
+// Source: admin.service.ts:80-84
+deleteMachine(id: string) {
+  const machine = this.state.adminMachines().find(m => m.id === id);
+  this.state.adminMachines.update(machines => machines.filter(m => m.id !== id));
+  this.audit.log(this.state.userName(), this.state.userRole(), 'ADMIN', 
+    'Eliminar Máquina', `Máquina eliminada: ${machine?.name || id}`);
+}
+```
+
+<Warning>
+  Deleting a machine removes it from work order assignments. Consider setting status to "Detenida" instead of deletion.
+</Warning>
+
+## Machine Status Management
+
+Machines can have different operational states:
+
+<AccordionGroup>
+  <Accordion title="Operativa (Operational)" icon="circle-check" iconType="solid" color="#10b981">
+    Machine is fully functional and available for production
+    
+    **Visual**: Green pulsing indicator
+    
+    **Code**: `status: 'Operativa'`
+  </Accordion>
+  
+  <Accordion title="Mantenimiento (Maintenance)" icon="wrench" color="#eab308">
+    Machine is undergoing scheduled or corrective maintenance
+    
+    **Visual**: Yellow indicator
+    
+    **Code**: `status: 'Mantenimiento'`
+  </Accordion>
+  
+  <Accordion title="Detenida (Stopped)" icon="circle-stop" color="#ef4444">
+    Machine is stopped due to breakdown or other issues
+    
+    **Visual**: Red indicator
+    
+    **Code**: `status: 'Detenida'`
+  </Accordion>
+  
+  <Accordion title="Sin Operador (No Operator)" icon="user-slash" color="#6b7280">
+    Machine is operational but no operator is assigned
+    
+    **Visual**: Gray indicator
+    
+    **Code**: `status: 'Sin Operador'`
+  </Accordion>
+</AccordionGroup>
+
+### Status Color Coding
+
+```typescript
+// Source: admin-machines.component.ts:223-233
+getMachineStatusColor(status: string) {
+  if(status === 'Operativa') return 'bg-neon-green shadow-neon-green animate-pulse';
+  if(status === 'Mantenimiento') return 'bg-neon-yellow shadow-neon-yellow';
+  return 'bg-neon-red shadow-neon-red';
+}
+
+getMachineStatusTextColor(status: string) {
+  if(status === 'Operativa') return 'text-neon-green';
+  if(status === 'Mantenimiento') return 'text-neon-yellow';
+  return 'text-neon-red';
+}
+```
+
+## Machine Icon System
+
+Each machine type has a unique icon:
+
+```typescript
+// Source: admin-machines.component.ts:205-221
+getMachineIcon(type: string) {
+  switch(type) {
+    case 'Impresión': return 'print';
+    case 'Troquelado': return 'content_cut';
+    case 'Acabado': return 'sync';
+    default: return 'precision_manufacturing';
+  }
+}
+
+getMachineIconColor(type: string) {
+  switch(type) {
+    case 'Impresión': return 'text-blue-400';
+    case 'Troquelado': return 'text-purple-400';
+    case 'Acabado': return 'text-industrial-orange';
+    default: return 'text-slate-400';
+  }
+}
+```
+
+## IoT Monitoring
+
+Machines support IoT sensor integration for real-time monitoring:
+
+<CardGroup cols={2}>
+  <Card title="Thermal Sensors" icon="temperature-half">
+    Monitor critical temperature levels
+    
+    **Display**: Real-time temperature in °C
+    
+    **Alerts**: Automatic warnings for overheating
+  </Card>
+  
+  <Card title="Load Sensors" icon="gauge">
+    Track machine capacity utilization
+    
+    **Display**: Current load percentage
+    
+    **Metrics**: Production efficiency tracking
+  </Card>
+</CardGroup>
+
+## Production Areas
+
+Machines are organized by physical location:
+
+| Area | Machine Types | Count |
+|------|---------------|-------|
+| **Nave A** | Impresión | 4 machines |
+| **Nave B** | Impresión | 5 machines |
+| **Nave C** | Troquelado | 12 machines |
+| **Nave D** | Acabado | 13 machines |
+
+## Audit Logging
+
+All machine operations are tracked:
+
+| Action | Module | Details |
+|--------|--------|----------|
+| Create Machine | `ADMIN` | Machine name |
+| Update Machine | `ADMIN` | Machine name and new status |
+| Delete Machine | `ADMIN` | Machine name |
+| Status Change | `OPERACIONES` | Machine name and status transition |
+
+## Best Practices
+
+<Card title="Machine Management Guidelines" icon="list-check">
+  **Asset Codes**: Use consistent naming conventions (e.g., IMP-01, TRQ-01, RBB-01)
+  
+  **Status Updates**: Update machine status immediately when changes occur
+  
+  **Maintenance Tracking**: Set status to "Mantenimiento" during scheduled maintenance
+  
+  **Area Organization**: Group machines by physical location for easy operator access
+  
+  **IoT Integration**: Enable sensor monitoring for critical production equipment
+  
+  **Regular Audits**: Periodically verify machine records match physical assets
+</Card>
+
+## Code Reference
+
+Key source files:
+- **Data Model**: `src/services/state.service.ts:17-25`
+- **Service Methods**: `src/features/admin/services/admin.service.ts:57-84`
+- **UI Component**: `src/features/admin/components/admin-machines.component.ts`
+- **Machine List**: `src/services/state.service.ts:68-106`

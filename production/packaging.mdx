@@ -1,0 +1,533 @@
+---
+title: 'Packaging Production'
+description: 'Complete guide to the Packaging module covering palletizing, excess production tracking, and final product registration'
+icon: 'inventory-2'
+---
+
+The **Packaging Production** module manages the final stage of the production line, handling roll palletizing, excess production (demasía) tracking, and finished goods registration.
+
+## Overview
+
+The packaging system manages:
+- **Roll palletizing** and lot completion
+- **Demasía tracking** (excess/partial rolls)
+- **Lot status management** (Completo/Parcial)
+- **OT search and autocomplete**
+- **Dual-mode interface** (operator full-screen and manager list view)
+- **KPI dashboard** for packaging metrics
+
+**Component:** `ProductionPackagingComponent`  
+**Location:** `src/features/production/production-packaging.component.ts`
+
+---
+
+## Data Model
+
+The packaging report structure includes:
+
+<ParamField path="id" type="string" required>
+  Unique report identifier (e.g., "PKG-1000")
+</ParamField>
+
+<ParamField path="date" type="string | Date" required>
+  Report date (ISO string for form input, Date object for display)
+</ParamField>
+
+<ParamField path="operator" type="string" required>
+  Operator/packager responsible
+</ParamField>
+
+<ParamField path="shift" type="string" required>
+  Shift identifier: "Día - A", "Noche - B", "Día - C", "Noche - D"
+</ParamField>
+
+<ParamField path="ot" type="string" required>
+  Work order number
+</ParamField>
+
+<ParamField path="client" type="string" required>
+  Client name (Razón Social)
+</ParamField>
+
+<ParamField path="description" type="string" required>
+  Product description
+</ParamField>
+
+<ParamField path="status" type="'Completo' | 'Parcial'" required>
+  Lot completion status
+</ParamField>
+
+<ParamField path="rolls" type="number" required>
+  Quantity of finished rolls palletized
+</ParamField>
+
+<ParamField path="meters" type="number" required>
+  Average linear meters per roll (MLL/ROLLO)
+</ParamField>
+
+<ParamField path="demasiaRolls" type="number">
+  Number of excess/partial rolls (default: 0)
+</ParamField>
+
+<ParamField path="demasiaMeters" type="number">
+  Total linear meters in excess rolls (default: 0)
+</ParamField>
+
+<ParamField path="notes" type="string">
+  General observations
+</ParamField>
+
+---
+
+## Dual Interface Modes
+
+The component supports two distinct modes:
+
+### List View (Manager Mode)
+
+Default view showing:
+- Reports table with search
+- KPI dashboard cards
+- "Nuevo Registro" button to create reports
+
+**Navigation**: From dashboard → Production → Packaging
+
+### Full-Screen Operator Mode
+
+Optimized for production floor:
+- Large form fields for touchscreen
+- Full-screen immersive interface
+- Auto-opens when accessed via operator route
+
+**Navigation**: From operator terminal → Empaquetado (ST-04)
+
+```typescript
+// From production-packaging.component.ts:416
+ngOnInit() {
+  this.isOperatorMode = this.router.url.includes('/operator/packaging');
+  if (this.isOperatorMode) {
+    this.createNewReport();
+    this.showForm = true;
+  }
+}
+```
+
+---
+
+## KPI Dashboard
+
+Four key metrics are displayed (mock data in current implementation):
+
+### Rollos Terminados
+
+- **Icon**: Check circle (teal)
+- **Value**: 2,450 units
+- **Description**: Total finished rolls
+
+### Metros Lineales
+
+- **Icon**: Straighten (blue)
+- **Value**: 145.2 km
+- **Description**: Total linear meters produced
+
+### Demasía Recuperada
+
+- **Icon**: Add circle (purple)
+- **Value**: 12.5%
+- **Description**: Percentage of excess production recovered
+
+### Lotes Parciales
+
+- **Icon**: Timelapse (yellow)
+- **Value**: 3 lotes
+- **Description**: Number of partial lots (shift closures)
+
+---
+
+## Report Form Workflow
+
+<Steps>
+  <Step title="Master Data Entry">
+    **Editable Fields:**
+    
+    <ParamField path="date" type="date">
+      Report date (pre-filled with today)
+    </ParamField>
+    
+    <ParamField path="operator" type="text">
+      Packager name (pre-filled with logged-in user)
+    </ParamField>
+    
+    <ParamField path="shift" type="select">
+      Shift selection:
+      - Día - A
+      - Noche - B
+      - Día - C
+      - Noche - D
+    </ParamField>
+  </Step>
+  
+  <Step title="Search Work Order">
+    **OT Autocomplete with Live Search**
+    
+    ```typescript
+    searchOt(event: any) {
+      const query = (event.target.value || '').toLowerCase();
+      this.showOtSuggestions = true;
+      
+      if (!query) {
+        this.otSuggestions = this.ordersService.ots.slice(0, 5);
+        return;
+      }
+      
+      this.otSuggestions = this.ordersService.ots.filter(ot => 
+        String(ot.OT).toLowerCase().includes(query) || 
+        String(ot['Razon Social']).toLowerCase().includes(query)
+      ).slice(0, 8);
+    }
+    ```
+    
+    **Suggestion Display:**
+    - OT number (bold, blue)
+    - Order status badge
+    - Client name (bold)
+    - Product description (small, gray)
+  </Step>
+  
+  <Step title="Select OT">
+    When user clicks a suggestion:
+    
+    ```typescript
+    selectOt(ot: any) {
+      this.currentReport.ot = ot.OT;
+      this.currentReport.client = ot['Razon Social'];
+      this.currentReport.description = ot.descripcion;
+      this.showOtSuggestions = false;
+    }
+    ```
+    
+    This auto-populates client and product description.
+  </Step>
+  
+  <Step title="Set Lot Status">
+    Choose production status:
+    
+    <Tabs>
+      <Tab title="Completo">
+        - **Icon**: Check circle (emerald)
+        - **Meaning**: Production finished, order complete
+        - **Use**: Final delivery, no pending work
+      </Tab>
+      <Tab title="Parcial">
+        - **Icon**: Timelapse (amber)
+        - **Meaning**: Shift closure, more production pending
+        - **Use**: End of shift with incomplete order
+      </Tab>
+    </Tabs>
+    
+    ```html
+    <div (click)="currentReport.status = 'Completo'" 
+         class="cursor-pointer p-4 rounded-lg border"
+         [ngClass]="currentReport.status === 'Completo' ? 
+           'bg-[#064e3b]/20 border-emerald-500/50' : 
+           'bg-[#121921] border-gray-700'">
+    ```
+  </Step>
+  
+  <Step title="Enter Packaging Data">
+    **Main Production Section:**
+    
+    <ParamField path="rolls" type="number" required>
+      Quantity of finished rolls
+      - Label: "Total de unidades paletizadas"
+      - Unit: UND
+    </ParamField>
+    
+    <ParamField path="meters" type="number" required>
+      Average linear meters per roll
+      - Label: "Longitud promedio por unidad"
+      - Unit: MLL/ROLLO
+    </ParamField>
+  </Step>
+  
+  <Step title="Record Excess (Demasía)">
+    **Demasía Section** (right column with purple accent):
+    
+    <Note>
+    Demasía refers to material that exceeds the ordered quantity or partial rolls that don't meet the standard roll specification.
+    </Note>
+    
+    <ParamField path="demasiaRolls" type="number">
+      Number of excess/partial rolls
+    </ParamField>
+    
+    <ParamField path="demasiaMeters" type="number">
+      Total linear meters in excess
+    </ParamField>
+    
+    Info message:
+    > "Registrar aquí el material sobrante recuperable que no cumple con el estándar de rollo completo."
+  </Step>
+  
+  <Step title="Add Observations">
+    ```html
+    <textarea [(ngModel)]="currentReport.notes" 
+              placeholder="Ingrese comentarios adicionales sobre el proceso de empaquetado...">
+    </textarea>
+    ```
+    
+    Document:
+    - Minor incidents
+    - Packing discrepancies
+    - Notes for next shift
+  </Step>
+  
+  <Step title="Save Report">
+    **Validation** (`production-packaging.component.ts:497`):
+    
+    ```typescript
+    saveReport() {
+      if(!this.currentReport.rolls) {
+        alert("Debe ingresar la cantidad de rollos.");
+        return;
+      }
+      
+      alert("Reporte guardado exitosamente.");
+      this.closeForm();
+    }
+    ```
+    
+    System validates that roll count is entered before saving.
+  </Step>
+</Steps>
+
+---
+
+## OT Autocomplete Details
+
+### Suggestions Dropdown
+
+Appears when user types in OT field:
+
+```html
+<div *ngIf="showOtSuggestions && otSuggestions.length > 0" 
+     class="absolute z-50 w-full bg-[#1a2332] border border-gray-700 rounded-lg shadow-2xl max-h-60 overflow-y-auto">
+  <div *ngFor="let suggestion of otSuggestions" 
+       (mousedown)="selectOt(suggestion)"
+       class="p-3 hover:bg-blue-600/20 cursor-pointer border-b border-gray-800">
+    <!-- Suggestion content -->
+  </div>
+</div>
+```
+
+### Blur Handling
+
+```typescript
+hideSuggestions() {
+  // Small delay to allow click event on suggestion to fire first
+  setTimeout(() => {
+    this.showOtSuggestions = false;
+  }, 200);
+}
+```
+
+The 200ms delay ensures the click event on a suggestion fires before the dropdown closes.
+
+---
+
+## Reports List Table
+
+Manager view displays reports with columns:
+
+<Tabs>
+  <Tab title="Fecha">
+    Date (dd/MM/yyyy) and time (HH:mm)
+  </Tab>
+  <Tab title="OT">
+    Work order with teal badge
+  </Tab>
+  <Tab title="Cliente / Producto">
+    Client name (bold) and product description (truncated)
+  </Tab>
+  <Tab title="Estado Lote">
+    Status badge:
+    - **COMPLETO**: Emerald with check icon
+    - **PARCIAL**: Amber with timelapse icon
+  </Tab>
+  <Tab title="Cant. Rollos">
+    Roll count (bold, large, white)
+  </Tab>
+  <Tab title="Metros (MLL)">
+    Linear meters (monospace, gray)
+  </Tab>
+  <Tab title="Demasía">
+    Excess rolls (purple badge) or "-" if zero
+  </Tab>
+  <Tab title="Acciones">
+    Edit button (pencil icon, teal hover)
+  </Tab>
+</Tabs>
+
+### Row Click Behavior
+
+```html
+<tr (click)="editReport(report)" class="hover:bg-[#202b3d] transition-colors group cursor-pointer">
+```
+
+Clicking a row opens the form in edit mode:
+
+```typescript
+editReport(report: any) {
+  this.currentReport = { 
+    ...report,
+    date: new Date(report.date).toISOString().split('T')[0],
+    operator: report.operator || this.state.userName(),
+    shift: report.shift || this.state.currentShift() || 'Día - A'
+  };
+  this.showForm = true;
+}
+```
+
+---
+
+## Form Initialization
+
+When creating a new report (`production-packaging.component.ts:424`):
+
+```typescript
+createNewReport() {
+  const ot = this.ordersService.ots.find(o => 
+    o.Estado_pedido === 'EN PROCESO' || 
+    o.Estado_pedido === 'PENDIENTE'
+  ) || null;
+  
+  this.currentReport = {
+    id: null,
+    date: new Date().toISOString().split('T')[0], // yyyy-MM-dd
+    operator: this.state.userName(),
+    shift: this.state.currentShift() || 'Día - A',
+    ot: ot ? ot.OT : '',
+    client: ot ? ot['Razon Social'] : '',
+    description: ot ? (ot.descripcion || '') : '',
+    status: 'Completo',
+    rolls: null,
+    meters: null,
+    demasiaRolls: null,
+    demasiaMeters: null,
+    notes: ''
+  };
+  this.showForm = true;
+}
+```
+
+**Features:**
+- Pre-fills with first available "EN PROCESO" or "PENDIENTE" OT
+- Uses current logged-in user as operator
+- Defaults to current shift
+- Sets status to "Completo" initially
+
+---
+
+## Operator Mode Navigation
+
+### Entry Point
+
+From operator selector (`operator-selector.component.ts:311`):
+
+```typescript
+navigateTo(type: string) {
+  if (type === 'packaging') {
+    this.router.navigate(['/operator/packaging']);
+  } else {
+    this.router.navigate(['/operator/select-machine', type]);
+  }
+}
+```
+
+**Note**: Packaging is unique—it doesn't require machine selection, so it navigates directly to the form.
+
+### Exit Behavior
+
+```typescript
+closeForm() {
+  if (this.isOperatorMode) {
+    this.router.navigate(['/operator']);
+  } else {
+    this.showForm = false;
+  }
+}
+```
+
+- **Operator mode**: Returns to operator selector
+- **Manager mode**: Hides form, shows list view
+
+---
+
+## Mock Data Generation
+
+For demonstration purposes (`production-packaging.component.ts:512`):
+
+```typescript
+get reports() {
+  const ots = this.ordersService.ots.slice(0, 10);
+  return ots.map((ot, i) => ({
+    id: `PKG-${1000+i}`,
+    date: new Date(new Date().getTime() - i * 86400000),
+    ot: ot.OT,
+    client: ot['Razon Social'],
+    description: ot.descripcion,
+    status: i % 3 === 0 ? 'Parcial' : 'Completo',
+    rolls: Math.floor(Math.random() * 50) + 10,
+    meters: Math.floor(Math.random() * 5000) + 1000,
+    demasiaRolls: i % 4 === 0 ? Math.floor(Math.random() * 5) : 0,
+    demasiaMeters: i % 4 === 0 ? Math.floor(Math.random() * 500) : 0,
+    notes: ''
+  }));
+}
+```
+
+**Patterns:**
+- Every 3rd report is "Parcial"
+- Every 4th report has demasía
+- Dates are staggered by day
+
+---
+
+## User Helper Functions
+
+### Get User Initials
+
+```typescript
+getInitials(name: string): string {
+  return name ? 
+    name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 
+    'US';
+}
+```
+
+**Examples:**
+- "Juan Martinez" → "JM"
+- "Ana Lopez" → "AL"
+- "" → "US"
+
+---
+
+## Best Practices
+
+<Check>Verify roll count matches rewind production before recording</Check>
+<Check>Record demasía immediately—it affects inventory and cost tracking</Check>
+<Check>Use "Parcial" status only for shift closures, not partial deliveries</Check>
+<Check>Document packing discrepancies in observations</Check>
+<Check>Ensure linear meters per roll are consistent with specifications</Check>
+<Check>Coordinate with warehouse for pallet pickup after recording</Check>
+
+<Warning>Always validate roll counts before marking as "Completo"</Warning>
+<Warning>Do not leave demasía fields empty if excess production exists</Warning>
+
+---
+
+## Related Modules
+
+- [Rewind Production](/production/rewind) - Preceding stage
+- [Operator Mode](/production/operator-mode) - Full-screen interface
+- [Inventory Management](/inventory/overview) - Downstream tracking

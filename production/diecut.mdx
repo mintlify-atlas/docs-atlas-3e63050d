@@ -1,0 +1,493 @@
+---
+title: 'Diecut Production'
+description: 'Comprehensive guide to the Diecut production module covering die-cutting, embossing, and conversion operations'
+icon: 'content-cut'
+---
+
+The **Diecut Production** module manages die-cutting and conversion operations, tracking unit production, waste rates, die series usage, and multi-activity workflows for both rotary and flatbed die-cutters.
+
+## Overview
+
+The diecut production system handles:
+- **Multi-activity tracking** for diverse conversion processes
+- **Die series management** and tooling status
+- **Unit-based production** tracking
+- **Waste/scrap monitoring** and rates
+- **Frequency tracking** for flatbed die-cutters
+- **KPI dashboard** with real-time metrics
+
+**Component:** `ProductionDiecutComponent`  
+**Location:** `src/features/production/production-diecut.component.ts`
+
+---
+
+## Data Models
+
+### DiecutActivity Interface
+
+Represents individual activities within a diecut report:
+
+<ParamField path="type" type="string" required>
+  Activity type (e.g., "TROQUELADO", "SETUP", "REPUJADO")
+</ParamField>
+
+<ParamField path="startTime" type="string" required>
+  Activity start time in HH:mm format
+</ParamField>
+
+<ParamField path="endTime" type="string" required>
+  Activity end time in HH:mm format
+</ParamField>
+
+<ParamField path="qty" type="number" required>
+  Quantity produced during this activity (0 for non-productive activities)
+</ParamField>
+
+<ParamField path="observations" type="string" optional>
+  Activity-specific observations or notes
+</ParamField>
+
+### DiecutReport Interface
+
+Main report structure for diecut production:
+
+<ParamField path="id" type="string" required>
+  Unique report identifier (e.g., "REP-TRQ-1000")
+</ParamField>
+
+<ParamField path="date" type="Date" required>
+  Report timestamp
+</ParamField>
+
+<ParamField path="ot" type="string" required>
+  Work order number
+</ParamField>
+
+<ParamField path="client" type="string" required>
+  Client name (Razón Social)
+</ParamField>
+
+<ParamField path="product" type="string" required>
+  Product description
+</ParamField>
+
+<ParamField path="machine" type="string" required>
+  Machine name (e.g., "Plana 1", "Rotativa 2")
+</ParamField>
+
+<ParamField path="operator" type="string" required>
+  Operator responsible for the shift
+</ParamField>
+
+<ParamField path="shift" type="string" required>
+  Shift identifier (e.g., "Día - A", "Noche - B")
+</ParamField>
+
+<ParamField path="dieSeries" type="string" required>
+  Die series/number used (e.g., "TR-8245")
+</ParamField>
+
+<ParamField path="frequency" type="string" optional>
+  Frequency setting (flatbed die-cutters only)
+</ParamField>
+
+<ParamField path="goodUnits" type="number" required>
+  Total good units produced
+</ParamField>
+
+<ParamField path="waste" type="number" required>
+  Total waste/scrap units
+</ParamField>
+
+<ParamField path="dieStatus" type="'OK' | 'Desgaste' | 'Dañado'" required>
+  Die tooling condition status
+</ParamField>
+
+<ParamField path="activities" type="DiecutActivity[]" required>
+  Array of production activities
+</ParamField>
+
+<ParamField path="productionStatus" type="'PARCIAL' | 'TOTAL'" required>
+  Production completion status
+</ParamField>
+
+<ParamField path="observations" type="string">
+  General observations for the report
+</ParamField>
+
+---
+
+## Activity Types
+
+The system supports multiple conversion operations (`operator-form.component.ts:557`):
+
+```typescript
+diecutActivityTypes = [
+  'SETUP',
+  'TROQUELADO',
+  'ESTAMPADO',
+  'LAMINADO',
+  'REPUJADO',
+  'TROQUELADO + PREPICADO',
+  'PREPICADO',
+  'PARADA-MANTENIMIENTO',
+  'PARADA-TROQUEL DAÑADO',
+  'PARADA-FALLA DE MÁQUINA',
+  'PARADA-OTROS'
+];
+```
+
+### Activity Classification
+
+<Tabs>
+  <Tab title="Productive">
+    - **TROQUELADO**: Standard die-cutting operation
+    - **ESTAMPADO**: Hot foil stamping
+    - **LAMINADO**: Lamination process
+    - **REPUJADO**: Embossing operation
+    - **TROQUELADO + PREPICADO**: Die-cutting with pre-perforation
+    - **PREPICADO**: Pre-perforation only
+  </Tab>
+  <Tab title="Setup">
+    - **SETUP**: Machine preparation, die mounting, and configuration (0 units)
+  </Tab>
+  <Tab title="Downtime">
+    - **PARADA-MANTENIMIENTO**: Maintenance stoppage
+    - **PARADA-TROQUEL DAÑADO**: Damaged die stoppage
+    - **PARADA-FALLA DE MÁQUINA**: Machine failure
+    - **PARADA-OTROS**: Other stoppages
+  </Tab>
+</Tabs>
+
+---
+
+## KPI Metrics
+
+The dashboard displays four key performance indicators (`production-diecut.component.ts:420`):
+
+### Unidades Producidas
+
+```typescript
+const totalUnits = this.reports.reduce((acc, r) => acc + r.goodUnits, 0);
+```
+
+- Sum of all good units produced
+- Displayed with comparison (e.g., "+8% vs semana anterior")
+
+### Tasa de Mermas
+
+```typescript
+const totalWaste = this.reports.reduce((acc, r) => acc + r.waste, 0);
+const wasteRate = totalUnits > 0 ? (totalWaste / totalUnits) * 100 : 0;
+```
+
+- Percentage of waste relative to total units
+- Lower percentages indicate better efficiency
+
+### Horas Operativas
+
+```typescript
+const totalHours = this.reports.length * 8; // Estimated hours per report
+```
+
+- Total operational hours across all machines
+- Estimated based on report count
+
+### Desgaste Herramental
+
+```typescript
+const toolingIssues = this.reports.filter(r => r.dieStatus !== 'OK').length;
+```
+
+- Number of reports with die issues (Desgaste or Dañado)
+- Indicates maintenance requirements
+
+---
+
+## Die Status Management
+
+### Status Values
+
+Die condition tracking (`production-diecut.component.ts:442`):
+
+<Tabs>
+  <Tab title="OK">
+    - **Color**: Emerald (green)
+    - **Meaning**: Die in good condition, normal operation
+    - **Class**: `bg-emerald-500/10 text-emerald-400 border-emerald-500/20`
+  </Tab>
+  <Tab title="Desgaste">
+    - **Color**: Yellow/Amber
+    - **Meaning**: Die shows wear, maintenance recommended
+    - **Class**: `bg-yellow-500/10 text-yellow-400 border-yellow-500/20`
+    - **Action**: Schedule resharpening or replacement
+  </Tab>
+  <Tab title="Dañado">
+    - **Color**: Red
+    - **Meaning**: Die damaged, cannot be used
+    - **Class**: `bg-red-500/10 text-red-400 border-red-500/20`
+    - **Action**: Immediate replacement required
+  </Tab>
+</Tabs>
+
+### Status Logic Example
+
+```typescript
+// From production-diecut.component.ts:380
+const dieStatus = index % 5 === 0 ? 'Desgaste' : 
+                  (index % 20 === 0 ? 'Dañado' : 'OK');
+```
+
+---
+
+## Flatbed vs Rotary Die-Cutters
+
+### Machine Type Detection
+
+The system automatically detects machine type (`operator-form.component.ts:617`):
+
+```typescript
+get isFlatbed(): boolean {
+  return (this.machineName || '').toUpperCase().includes('PLANA');
+}
+```
+
+### Flatbed-Specific Features
+
+<Note>
+Flatbed die-cutters require **frequency** tracking, which specifies the number of strokes or cycles per operation.
+</Note>
+
+```typescript
+// Flatbed frequency input (operator-form.component.ts:299)
+<div *ngIf="isFlatbed" class="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4">
+  <label>Frecuencia (Troqueladora Plana)</label>
+  <input type="text" [(ngModel)]="formData.frequency" 
+         placeholder="Ingrese frecuencia...">
+</div>
+```
+
+---
+
+## Report Workflow
+
+<Steps>
+  <Step title="Access Module">
+    Navigate to operator terminal and select **Troquelado** station (ST-02)
+  </Step>
+  
+  <Step title="Select Machine">
+    Choose die-cutting machine from available equipment:
+    - Rotary die-cutters (Rotativa 1, Rotativa 2)
+    - Flatbed die-cutters (Plana 1, Plana 2)
+  </Step>
+  
+  <Step title="Search Work Order">
+    Enter OT number or use autocomplete to find:
+    - Work order number
+    - Client name
+    - Product details
+  </Step>
+  
+  <Step title="Enter Die Series">
+    Record the die series/number being used (e.g., "TR-8245")
+    
+    The system may auto-populate from OT data:
+    ```typescript
+    dieSeries: ot.troquel || `TR-${ot.OT.slice(-4)}`
+    ```
+  </Step>
+  
+  <Step title="Set Frequency (Flatbed Only)">
+    If using a flatbed die-cutter, enter the frequency setting
+  </Step>
+  
+  <Step title="Add Activities">
+    For each activity during the shift:
+    1. Select activity type
+    2. Enter start time
+    3. Enter end time
+    4. Enter meters produced
+    5. Add activity-specific observations
+    6. Click **Agregar**
+    
+    System tracks total meters across all activities.
+  </Step>
+  
+  <Step title="Record Die Status">
+    Inspect and select die condition:
+    - **OK**: Continue normal operation
+    - **Desgaste**: Note for maintenance scheduling
+    - **Dañado**: Requires immediate attention
+  </Step>
+  
+  <Step title="Set Production Status">
+    Choose:
+    - **PARCIAL**: Shift closure, work order incomplete
+    - **TOTAL**: Work order fully completed
+  </Step>
+  
+  <Step title="Add Observations">
+    Document:
+    - Die performance issues
+    - Quality concerns (e.g., "Troquel presenta rebabas en bordes derechos")
+    - Material issues
+    - Handoff notes
+  </Step>
+  
+  <Step title="Submit Report">
+    Click **Confirmar y Guardar Reporte**
+    
+    System creates audit log:
+    ```typescript
+    details = `Op: ${operator}, Troquel: ${dieSeries}, ` +
+              `Actividades: [${activitySummary}], Total Mts: ${totalMeters}`;
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Activity Tracking Example
+
+Typical diecut shift activities (`production-diecut.component.ts:383`):
+
+```typescript
+const activities: DiecutActivity[] = [
+  { 
+    type: 'SETUP', 
+    startTime: '08:00', 
+    endTime: '09:00', 
+    qty: 0 
+  },
+  { 
+    type: 'TROQUELADO', 
+    startTime: '09:00', 
+    endTime: '12:00', 
+    qty: Math.floor(goodUnits * 0.4) 
+  },
+  { 
+    type: 'REPUJADO', 
+    startTime: '12:00', 
+    endTime: '14:00', 
+    qty: Math.floor(goodUnits * 0.3) 
+  },
+  { 
+    type: 'TROQUELADO', 
+    startTime: '14:00', 
+    endTime: '16:00', 
+    qty: Math.floor(goodUnits * 0.3) 
+  }
+];
+```
+
+---
+
+## Report Detail Modal
+
+Clicking a report row opens detailed view showing:
+
+### Product Information Section
+- Client name
+- Product description
+- Machine assigned
+- Operator name
+
+### Production Metrics Section
+<CardGroup cols={2}>
+  <Card title="Unidades Buenas" icon="check-circle">
+    Total good units produced (large emerald display)
+  </Card>
+  <Card title="Mermas" icon="trash">
+    Total waste units (large red display)
+  </Card>
+</CardGroup>
+
+**Troquel Usado** badge shows die series with status indicator
+
+### Activities Table
+Columns:
+- **Actividad**: Activity name with status dot
+- **Horario**: Time range
+- **Duración**: Calculated duration
+- **Cant. Prod.**: Quantity produced
+- **Obs**: Activity-specific observations
+
+Footer displays **Total Producción** sum.
+
+---
+
+## Search and Filtering
+
+Real-time search across multiple fields (`production-diecut.component.ts:410`):
+
+```typescript
+get filteredReports() {
+  const term = this.searchTerm.toLowerCase();
+  return this.reports.filter(r => 
+    r.ot.toLowerCase().includes(term) ||
+    r.machine.toLowerCase().includes(term) ||
+    r.dieSeries.toLowerCase().includes(term) ||
+    r.client.toLowerCase().includes(term)
+  );
+}
+```
+
+**Searchable fields:**
+- OT number
+- Machine name
+- Die series
+- Client name
+
+---
+
+## Waste Rate Analysis
+
+### Calculation
+
+```typescript
+const totalWaste = reports.reduce((acc, r) => acc + r.waste, 0);
+const totalUnits = reports.reduce((acc, r) => acc + r.goodUnits, 0);
+const wasteRate = (totalWaste / totalUnits) * 100;
+```
+
+### Visual Indicator
+
+Waste rate is displayed with a progress bar:
+
+```html
+<div class="w-full bg-slate-700/50 h-1.5 rounded-full">
+  <div class="bg-red-500 h-full rounded-full" 
+       [style.width.%]="kpis.wasteRate * 10">
+  </div>
+</div>
+```
+
+**Interpretation:**
+- **< 2%**: Excellent
+- **2-4%**: Good
+- **4-6%**: Acceptable
+- **> 6%**: Requires investigation
+
+---
+
+## Best Practices
+
+<Check>Inspect die condition before starting production</Check>
+<Check>Record exact die series number for traceability</Check>
+<Check>Document any die wear immediately when noticed</Check>
+<Check>For flatbed machines, always record frequency setting</Check>
+<Check>Track waste by activity to identify problem areas</Check>
+<Check>Add observations for any quality issues or die performance</Check>
+
+<Warning>Never continue production with damaged dies - mark as "Dañado"</Warning>
+<Warning>Schedule maintenance when die status is "Desgaste"</Warning>
+<Warning>Verify unit counts match expected quantities for the OT</Warning>
+
+---
+
+## Related Modules
+
+- [Print Production](/production/print) - Printing operations
+- [Rewind Production](/production/rewind) - Rewinding operations
+- [Operator Mode](/production/operator-mode) - Full-screen operator interface

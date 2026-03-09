@@ -1,0 +1,628 @@
+---
+title: 'AdminService'
+description: 'Service for managing users, roles, machines, and system configuration'
+---
+
+## Overview
+
+The `AdminService` provides administrative functionality for managing the P.FLEX system. It acts as a facade over the StateService, providing CRUD operations for:
+
+- **Users** - Application user accounts with roles and credentials
+- **Roles** - Role definitions with permission sets
+- **Machines** - Production equipment registration and status
+- **Configuration** - Global system settings
+
+All operations are automatically logged via AuditService.
+
+**Location:** `src/features/admin/services/admin.service.ts`
+
+**Provider:** Root (singleton)
+
+**Dependencies:** StateService, AuditService
+
+## User Management
+
+### users
+
+Gets the users signal from StateService.
+
+```typescript
+get users(): Signal<AppUser[]>
+```
+
+**Returns:** Signal containing all application users
+
+<CodeGroup>
+```typescript Example
+import { inject } from '@angular/core';
+import { AdminService } from './features/admin/services/admin.service';
+
+const adminService = inject(AdminService);
+const allUsers = adminService.users();
+
+console.log('Total users:', allUsers.length);
+allUsers.forEach(user => {
+  console.log(`${user.name} (${user.username}) - ${user.role}`);
+});
+```
+</CodeGroup>
+
+### addAdminUser
+
+Creates a new user account.
+
+```typescript
+addAdminUser(user: Partial<AppUser>): void
+```
+
+<ParamField path="user" type="Partial<AppUser>" required>
+  User data to create. Only required fields need to be provided.
+</ParamField>
+
+**User Properties:**
+- `name` - Full display name (default: '')
+- `username` - Login username (default: '')
+- `role` - User role (default: 'Operario')
+- `active` - Account status (default: true)
+- `assignedAreas` - Array of assigned production areas (default: [])
+
+**Behavior:**
+- Generates unique ID automatically
+- Applies defaults for missing fields
+- Appends to users array
+- Logs creation event with username and role
+
+<CodeGroup>
+```typescript Example
+const newUser: Partial<AppUser> = {
+  name: 'Roberto Martinez',
+  username: 'rmartinez',
+  role: 'Supervisor',
+  active: true,
+  assignedAreas: ['Nave A', 'Nave B']
+};
+
+adminService.addAdminUser(newUser);
+
+// User is now available
+const users = adminService.users();
+const created = users.find(u => u.username === 'rmartinez');
+console.log('Created user:', created);
+```
+</CodeGroup>
+
+### updateAdminUser
+
+Updates an existing user's information.
+
+```typescript
+updateAdminUser(updatedUser: AppUser): void
+```
+
+<ParamField path="updatedUser" type="AppUser" required>
+  Complete user object with updated properties. Must have matching ID.
+</ParamField>
+
+**Behavior:**
+- Finds user by ID and replaces with updated object
+- Logs modification event with username
+
+<CodeGroup>
+```typescript Example
+const users = adminService.users();
+const user = users.find(u => u.username === 'rmartinez');
+
+if (user) {
+  adminService.updateAdminUser({
+    ...user,
+    role: 'Jefatura',
+    assignedAreas: [...user.assignedAreas, 'Nave C']
+  });
+}
+```
+</CodeGroup>
+
+### deleteAdminUser
+
+Removes a user account.
+
+```typescript
+deleteAdminUser(id: string): void
+```
+
+<ParamField path="id" type="string" required>
+  User ID to delete.
+</ParamField>
+
+**Behavior:**
+- Removes user from array by ID
+- Logs deletion event with username (or ID if user not found)
+
+<CodeGroup>
+```typescript Example
+const users = adminService.users();
+const userToDelete = users.find(u => u.username === 'rmartinez');
+
+if (userToDelete) {
+  adminService.deleteAdminUser(userToDelete.id);
+  console.log('User deleted');
+}
+```
+</CodeGroup>
+
+## Role Management
+
+### roles
+
+Gets the roles signal from StateService.
+
+```typescript
+get roles(): Signal<RoleDefinition[]>
+```
+
+**Returns:** Signal containing all role definitions
+
+**Default Roles:**
+- **Jefatura** - Full access to reports, KPIs, and approvals
+- **Supervisor** - Shift management and task assignment
+- **Operario** - Production recording
+- **Sistemas** - Full system administration
+
+<CodeGroup>
+```typescript Example
+const allRoles = adminService.roles();
+
+allRoles.forEach(role => {
+  console.log(`${role.name}: ${role.description}`);
+  console.log('Permissions:', role.permissions.join(', '));
+});
+```
+</CodeGroup>
+
+### updateRole
+
+Updates a role's definition and permissions.
+
+```typescript
+updateRole(updatedRole: RoleDefinition): void
+```
+
+<ParamField path="updatedRole" type="RoleDefinition" required>
+  Complete role object with updated properties. Must have matching ID.
+</ParamField>
+
+**RoleDefinition Properties:**
+- `id` - Unique role identifier
+- `name` - Role name
+- `description` - Role description
+- `permissions` - Array of permission strings
+
+<CodeGroup>
+```typescript Example
+const roles = adminService.roles();
+const supervisorRole = roles.find(r => r.name === 'Supervisor');
+
+if (supervisorRole) {
+  adminService.updateRole({
+    ...supervisorRole,
+    permissions: [...supervisorRole.permissions, 'Gestionar Inventario']
+  });
+}
+```
+</CodeGroup>
+
+### deleteRole
+
+Removes a role definition.
+
+```typescript
+deleteRole(id: string): void
+```
+
+<ParamField path="id" type="string" required>
+  Role ID to delete.
+</ParamField>
+
+**Warning:** Deleting a role does not automatically update users assigned to that role.
+
+<CodeGroup>
+```typescript Example
+const roles = adminService.roles();
+const customRole = roles.find(r => r.name === 'Custom Role');
+
+if (customRole) {
+  adminService.deleteRole(customRole.id);
+}
+```
+</CodeGroup>
+
+## Machine Management
+
+### machines
+
+Gets the machines signal from StateService.
+
+```typescript
+get machines(): Signal<Machine[]>
+```
+
+**Returns:** Signal containing all registered machines
+
+**Machine Types:**
+- **Impresión** - Printing presses (9 machines: IMP-01 to IMP-09)
+- **Troquelado** - Die cutting machines (12 machines: TRQ-01 to TRQ-12)
+- **Acabado** - Finishing equipment (13 machines: RBB-01 to RBB-13)
+
+<CodeGroup>
+```typescript Example
+const allMachines = adminService.machines();
+
+// Filter by type
+const printingMachines = allMachines.filter(m => m.type === 'Impresión');
+console.log('Printing machines:', printingMachines.length);
+
+// Filter by status
+const inMaintenance = allMachines.filter(m => m.status === 'Mantenimiento');
+console.log('In maintenance:', inMaintenance.length);
+
+// Group by area
+const byArea = allMachines.reduce((acc, m) => {
+  acc[m.area] = (acc[m.area] || 0) + 1;
+  return acc;
+}, {} as Record<string, number>);
+console.log('Machines by area:', byArea);
+```
+</CodeGroup>
+
+### addMachine
+
+Registers a new machine.
+
+```typescript
+addMachine(machine: Partial<Machine>): void
+```
+
+<ParamField path="machine" type="Partial<Machine>" required>
+  Machine data to register.
+</ParamField>
+
+**Machine Properties:**
+- `code` - Machine code (e.g., 'IMP-10') (default: '')
+- `name` - Machine name (default: '')
+- `type` - Machine type: 'Impresión', 'Troquelado', 'Acabado' (default: 'Impresión')
+- `area` - Physical location (default: '')
+- `status` - Current status: 'Operativa', 'Mantenimiento', 'Detenida', 'Sin Operador' (default: 'Operativa')
+- `active` - Active flag (default: true)
+
+<CodeGroup>
+```typescript Example
+const newMachine: Partial<Machine> = {
+  code: 'IMP-10',
+  name: 'SUPERFLEX 300',
+  type: 'Impresión',
+  area: 'Nave A',
+  status: 'Operativa',
+  active: true
+};
+
+adminService.addMachine(newMachine);
+
+// Machine is now available
+const machines = adminService.machines();
+const created = machines.find(m => m.code === 'IMP-10');
+console.log('Registered:', created?.name);
+```
+</CodeGroup>
+
+### updateMachine
+
+Updates a machine's information or status.
+
+```typescript
+updateMachine(updatedMachine: Machine): void
+```
+
+<ParamField path="updatedMachine" type="Machine" required>
+  Complete machine object with updated properties. Must have matching ID.
+</ParamField>
+
+**Behavior:**
+- Finds machine by ID and replaces with updated object
+- Logs modification event with machine name and status
+
+<CodeGroup>
+```typescript Example
+const machines = adminService.machines();
+const machine = machines.find(m => m.code === 'IMP-01');
+
+if (machine) {
+  // Update status to maintenance
+  adminService.updateMachine({
+    ...machine,
+    status: 'Mantenimiento'
+  });
+  
+  console.log(`${machine.name} set to maintenance`);
+}
+```
+</CodeGroup>
+
+### deleteMachine
+
+Removes a machine from the registry.
+
+```typescript
+deleteMachine(id: string): void
+```
+
+<ParamField path="id" type="string" required>
+  Machine ID to delete.
+</ParamField>
+
+<CodeGroup>
+```typescript Example
+const machines = adminService.machines();
+const machineToRemove = machines.find(m => m.code === 'IMP-10');
+
+if (machineToRemove) {
+  adminService.deleteMachine(machineToRemove.id);
+  console.log('Machine removed from registry');
+}
+```
+</CodeGroup>
+
+## Configuration Management
+
+### config
+
+Gets the system configuration signal from StateService.
+
+```typescript
+get config(): Signal<SystemConfig>
+```
+
+**Returns:** Signal containing global system configuration
+
+**SystemConfig Properties:**
+- `shiftName1` - Name of first shift (default: 'Turno Día')
+- `shiftTime1` - Start time of first shift (default: '06:00')
+- `shiftName2` - Name of second shift (default: 'Turno Noche')
+- `shiftTime2` - Start time of second shift (default: '18:00')
+- `passwordExpiryWarningDays` - Days before password expiry warning (default: 15)
+- `passwordPolicyDays` - Password expiration period (default: 90)
+- `plantName` - Factory name (default: 'Planta Central - Zona Industrial')
+- `autoLogoutMinutes` - Auto-logout timeout (default: 30)
+- `operatorMessage` - Message displayed to operators
+
+<CodeGroup>
+```typescript Example
+const config = adminService.config();
+
+console.log('Plant:', config.plantName);
+console.log('Shifts:');
+console.log(`  ${config.shiftName1}: ${config.shiftTime1}`);
+console.log(`  ${config.shiftName2}: ${config.shiftTime2}`);
+console.log('Security:');
+console.log(`  Password policy: ${config.passwordPolicyDays} days`);
+console.log(`  Auto-logout: ${config.autoLogoutMinutes} minutes`);
+```
+</CodeGroup>
+
+### updateConfig
+
+Updates the global system configuration.
+
+```typescript
+updateConfig(newConfig: SystemConfig): void
+```
+
+<ParamField path="newConfig" type="SystemConfig" required>
+  Complete configuration object with all properties.
+</ParamField>
+
+**Behavior:**
+- Replaces entire configuration object
+- Logs configuration update event
+
+<CodeGroup>
+```typescript Example
+const currentConfig = adminService.config();
+
+const updatedConfig: SystemConfig = {
+  ...currentConfig,
+  shiftName1: 'Turno Mañana',
+  shiftTime1: '07:00',
+  shiftName2: 'Turno Tarde',
+  shiftTime2: '19:00',
+  autoLogoutMinutes: 45,
+  operatorMessage: 'Recordar registrar todas las paradas en el sistema.'
+};
+
+adminService.updateConfig(updatedConfig);
+console.log('Configuration updated');
+```
+</CodeGroup>
+
+## Complete Admin Panel Example
+
+```typescript
+import { Component, inject, signal } from '@angular/core';
+import { AdminService } from './features/admin/services/admin.service';
+import { AppUser, Machine, RoleDefinition, SystemConfig } from './features/admin/models/admin.models';
+
+@Component({
+  selector: 'app-admin-panel',
+  template: `
+    <div class="admin-panel">
+      <h1>Panel de Administración</h1>
+      
+      <!-- Users Section -->
+      <section class="admin-section">
+        <h2>Usuarios ({{ adminService.users().length }})</h2>
+        <button (click)="showAddUserDialog()">Agregar Usuario</button>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Usuario</th>
+              <th>Rol</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (user of adminService.users(); track user.id) {
+              <tr>
+                <td>{{ user.name }}</td>
+                <td>{{ user.username }}</td>
+                <td>{{ user.role }}</td>
+                <td>{{ user.active ? 'Activo' : 'Inactivo' }}</td>
+                <td>
+                  <button (click)="editUser(user)">Editar</button>
+                  <button (click)="deleteUser(user.id)">Eliminar</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </section>
+      
+      <!-- Machines Section -->
+      <section class="admin-section">
+        <h2>Máquinas ({{ adminService.machines().length }})</h2>
+        <button (click)="showAddMachineDialog()">Agregar Máquina</button>
+        
+        <div class="machine-filters">
+          <button (click)="filterMachines('all')">Todas</button>
+          <button (click)="filterMachines('Impresión')">Impresión</button>
+          <button (click)="filterMachines('Troquelado')">Troquelado</button>
+          <button (click)="filterMachines('Acabado')">Acabado</button>
+        </div>
+        
+        <div class="machines-grid">
+          @for (machine of filteredMachines(); track machine.id) {
+            <div class="machine-card" [class.inactive]="!machine.active">
+              <h3>{{ machine.name }}</h3>
+              <p>{{ machine.code }}</p>
+              <p>Tipo: {{ machine.type }}</p>
+              <p>Área: {{ machine.area }}</p>
+              <p>Estado: <span [class]="'status-' + machine.status">{{ machine.status }}</span></p>
+              <button (click)="editMachine(machine)">Editar</button>
+            </div>
+          }
+        </div>
+      </section>
+      
+      <!-- Configuration Section -->
+      <section class="admin-section">
+        <h2>Configuración del Sistema</h2>
+        <button (click)="editConfig()">Modificar Configuración</button>
+        
+        <div class="config-display">
+          <h3>{{ adminService.config().plantName }}</h3>
+          
+          <div class="config-group">
+            <h4>Turnos</h4>
+            <p>{{ adminService.config().shiftName1 }}: {{ adminService.config().shiftTime1 }}</p>
+            <p>{{ adminService.config().shiftName2 }}: {{ adminService.config().shiftTime2 }}</p>
+          </div>
+          
+          <div class="config-group">
+            <h4>Seguridad</h4>
+            <p>Política de contraseñas: {{ adminService.config().passwordPolicyDays }} días</p>
+            <p>Aviso de expiración: {{ adminService.config().passwordExpiryWarningDays }} días</p>
+            <p>Auto-logout: {{ adminService.config().autoLogoutMinutes }} minutos</p>
+          </div>
+          
+          <div class="config-group">
+            <h4>Mensaje para Operadores</h4>
+            <p>{{ adminService.config().operatorMessage }}</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  `
+})
+export class AdminPanelComponent {
+  adminService = inject(AdminService);
+  
+  filteredMachines = signal<Machine[]>([]);
+  
+  constructor() {
+    this.filteredMachines.set(this.adminService.machines());
+  }
+  
+  filterMachines(type: string) {
+    if (type === 'all') {
+      this.filteredMachines.set(this.adminService.machines());
+    } else {
+      this.filteredMachines.set(
+        this.adminService.machines().filter(m => m.type === type)
+      );
+    }
+  }
+  
+  showAddUserDialog() {
+    // Open dialog to add user
+  }
+  
+  editUser(user: AppUser) {
+    // Open dialog to edit user
+  }
+  
+  deleteUser(id: string) {
+    if (confirm('¿Eliminar usuario?')) {
+      this.adminService.deleteAdminUser(id);
+    }
+  }
+  
+  showAddMachineDialog() {
+    // Open dialog to add machine
+  }
+  
+  editMachine(machine: Machine) {
+    // Open dialog to edit machine
+  }
+  
+  editConfig() {
+    // Open dialog to edit configuration
+  }
+}
+```
+
+## Audit Integration
+
+All AdminService operations automatically create audit log entries:
+
+**User Operations:**
+- Module: 'ADMIN'
+- Actions: 'Crear Usuario', 'Editar Usuario', 'Eliminar Usuario'
+
+**Role Operations:**
+- Module: 'ADMIN'
+- Actions: 'Actualizar Rol', 'Eliminar Rol'
+
+**Machine Operations:**
+- Module: 'ADMIN'
+- Actions: 'Crear Máquina', 'Actualizar Máquina', 'Eliminar Máquina'
+
+**Configuration Operations:**
+- Module: 'ADMIN'
+- Action: 'Configuración'
+
+Audit logs include:
+- Current user name and role (from StateService)
+- Timestamp
+- Simulated IP address
+- Detailed description with affected entity identifiers
+
+## Notes
+
+- AdminService is a facade over StateService for administrative operations
+- All signals are managed by StateService
+- Default data includes 4 users, 4 roles, and 34 machines
+- Machine registry covers all production areas (Nave A, B, C, D)
+- Role permissions are stored as string arrays for flexibility
+- No actual authentication/authorization is enforced - implement guards in production
+- All delete operations are immediate - implement soft deletes for production

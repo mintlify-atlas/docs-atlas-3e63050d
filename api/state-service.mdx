@@ -1,0 +1,372 @@
+---
+title: 'StateService'
+description: 'Central state management service for authentication, configuration, and global application state'
+---
+
+## Overview
+
+The `StateService` manages the global application state using Angular signals. It handles user authentication, shift management, system configuration, and maintains stores for users, roles, and machines.
+
+**Location:** `src/services/state.service.ts`
+
+**Provider:** Root (singleton)
+
+## State Properties
+
+### Signals
+
+<ResponseField name="config" type="Signal<SystemConfig>">
+  Global system configuration including shift times, password policies, plant name, and operator messages.
+</ResponseField>
+
+<ResponseField name="currentUser" type="Signal<User | null>">
+  Currently authenticated user object or null if not logged in.
+</ResponseField>
+
+<ResponseField name="currentShift" type="Signal<Shift>">
+  Current shift selection: 'Turno Día', 'Turno Noche', or null.
+</ResponseField>
+
+<ResponseField name="isSidebarCollapsed" type="Signal<boolean>">
+  Sidebar collapsed state for UI layout management.
+</ResponseField>
+
+<ResponseField name="syncStatus" type="Signal<SyncStatus>">
+  Current synchronization status: 'online', 'offline', 'syncing', or 'conflict'.
+</ResponseField>
+
+<ResponseField name="pendingSyncCount" type="Signal<number>">
+  Number of pending items awaiting synchronization.
+</ResponseField>
+
+<ResponseField name="adminUsers" type="Signal<AppUser[]>">
+  Complete list of application users with credentials and roles.
+</ResponseField>
+
+<ResponseField name="adminRoles" type="Signal<RoleDefinition[]>">
+  Role definitions with permissions: Jefatura, Supervisor, Operario, Sistemas.
+</ResponseField>
+
+<ResponseField name="adminMachines" type="Signal<Machine[]>">
+  All machines in the plant (Impresión, Troquelado, Acabado) with status and location.
+</ResponseField>
+
+### Computed Signals
+
+<ResponseField name="isLoggedIn" type="Signal<boolean>">
+  Computed from currentUser - returns true if user is authenticated.
+</ResponseField>
+
+<ResponseField name="userName" type="Signal<string>">
+  Computed user display name, returns 'Invitado' if not logged in.
+</ResponseField>
+
+<ResponseField name="userRole" type="Signal<string>">
+  Computed user role, returns empty string if not logged in.
+</ResponseField>
+
+## Types
+
+### UserRole
+
+```typescript
+type UserRole = 'Jefatura' | 'Supervisor' | 'Asistente' | 'Operario' | 'Encargado' | 'Sistemas';
+```
+
+### Shift
+
+```typescript
+type Shift = 'Turno Día' | 'Turno Noche' | string | null;
+```
+
+### SyncStatus
+
+```typescript
+type SyncStatus = 'online' | 'offline' | 'syncing' | 'conflict';
+```
+
+### User Interface
+
+```typescript
+interface User {
+  id: string;
+  name: string;
+  role: UserRole;
+  avatar?: string;
+}
+```
+
+### Machine Interface
+
+```typescript
+interface Machine {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  area: string;
+  status: 'Operativa' | 'Mantenimiento' | 'Detenida' | 'Sin Operador';
+  active: boolean;
+}
+```
+
+## Methods
+
+### login
+
+Authenticates a user and sets the current shift.
+
+```typescript
+login(username: string, shift: Shift): void
+```
+
+<ParamField path="username" type="string" required>
+  Username to authenticate. Matches against adminUsers or uses predefined mappings.
+</ParamField>
+
+<ParamField path="shift" type="Shift" required>
+  Selected shift: 'Turno Día', 'Turno Noche', or custom shift name.
+</ParamField>
+
+**Behavior:**
+- Searches for user in `adminUsers()` by username (case-insensitive)
+- Falls back to predefined mappings: 'admin' → Sistemas, 'jefe' → Jefatura, 'operario' → Operario
+- Sets `currentUser` and `currentShift` signals
+- Logs authentication event via AuditService
+
+<CodeGroup>
+```typescript Example
+// Inject service
+import { inject } from '@angular/core';
+import { StateService } from './services/state.service';
+
+const stateService = inject(StateService);
+
+// Login as supervisor in day shift
+stateService.login('jperez', 'Turno Día');
+
+// Login as admin in night shift
+stateService.login('admin', 'Turno Noche');
+```
+</CodeGroup>
+
+### logout
+
+Logs out the current user and clears authentication state.
+
+```typescript
+logout(): void
+```
+
+**Behavior:**
+- Logs logout event with current user info
+- Sets `currentUser` to null
+- Sets `currentShift` to null
+
+<CodeGroup>
+```typescript Example
+stateService.logout();
+
+console.log(stateService.isLoggedIn()); // false
+console.log(stateService.userName()); // 'Invitado'
+```
+</CodeGroup>
+
+### toggleSidebar
+
+Toggles the sidebar collapsed state.
+
+```typescript
+toggleSidebar(): void
+```
+
+**Behavior:**
+- Inverts the current value of `isSidebarCollapsed` signal
+
+<CodeGroup>
+```typescript Example
+stateService.toggleSidebar();
+const isCollapsed = stateService.isSidebarCollapsed(); // true/false
+```
+</CodeGroup>
+
+### setSyncStatus
+
+Updates the synchronization status.
+
+```typescript
+setSyncStatus(status: SyncStatus): void
+```
+
+<ParamField path="status" type="SyncStatus" required>
+  New sync status: 'online', 'offline', 'syncing', or 'conflict'.
+</ParamField>
+
+<CodeGroup>
+```typescript Example
+// Set to syncing during background sync
+stateService.setSyncStatus('syncing');
+
+// Set to online when complete
+stateService.setSyncStatus('online');
+
+// Handle offline state
+stateService.setSyncStatus('offline');
+```
+</CodeGroup>
+
+### updateMachine
+
+Updates a machine's status or properties.
+
+```typescript
+updateMachine(updatedMachine: Machine): void
+```
+
+<ParamField path="updatedMachine" type="Machine" required>
+  Complete machine object with updated properties.
+</ParamField>
+
+**Behavior:**
+- Updates machine in `adminMachines` signal by matching ID
+- Logs operational update via AuditService
+
+<CodeGroup>
+```typescript Example
+const machines = stateService.adminMachines();
+const machine = machines.find(m => m.code === 'IMP-01');
+
+if (machine) {
+  stateService.updateMachine({
+    ...machine,
+    status: 'Mantenimiento'
+  });
+}
+```
+</CodeGroup>
+
+## Usage Examples
+
+### Reactive Authentication Check
+
+```typescript
+import { Component, inject, effect } from '@angular/core';
+import { StateService } from './services/state.service';
+
+@Component({
+  selector: 'app-protected',
+  template: `
+    @if (state.isLoggedIn()) {
+      <h1>Welcome {{ state.userName() }}</h1>
+      <p>Role: {{ state.userRole() }}</p>
+    } @else {
+      <p>Please log in</p>
+    }
+  `
+})
+export class ProtectedComponent {
+  state = inject(StateService);
+  
+  constructor() {
+    // React to authentication changes
+    effect(() => {
+      if (!this.state.isLoggedIn()) {
+        console.log('User logged out');
+      }
+    });
+  }
+}
+```
+
+### Monitor Sync Status
+
+```typescript
+import { Component, inject, computed } from '@angular/core';
+import { StateService } from './services/state.service';
+
+@Component({
+  selector: 'app-sync-indicator',
+  template: `
+    <div class="sync-status" [class]="statusClass()">
+      {{ syncMessage() }}
+    </div>
+  `
+})
+export class SyncIndicatorComponent {
+  state = inject(StateService);
+  
+  statusClass = computed(() => {
+    return `status-${this.state.syncStatus()}`;
+  });
+  
+  syncMessage = computed(() => {
+    const status = this.state.syncStatus();
+    const count = this.state.pendingSyncCount();
+    
+    switch(status) {
+      case 'online': return 'Sincronizado';
+      case 'offline': return 'Sin conexión';
+      case 'syncing': return `Sincronizando (${count} pendientes)`;
+      case 'conflict': return 'Conflicto de sincronización';
+    }
+  });
+}
+```
+
+### Access System Configuration
+
+```typescript
+import { inject } from '@angular/core';
+import { StateService } from './services/state.service';
+
+const state = inject(StateService);
+const config = state.config();
+
+console.log('Plant:', config.plantName);
+console.log('Day shift starts:', config.shiftTime1);
+console.log('Night shift starts:', config.shiftTime2);
+console.log('Auto logout:', config.autoLogoutMinutes, 'minutes');
+```
+
+### Filter Active Machines by Type
+
+```typescript
+import { computed, inject } from '@angular/core';
+import { StateService } from './services/state.service';
+
+const state = inject(StateService);
+
+// Get all active printing machines
+const printingMachines = computed(() => 
+  state.adminMachines()
+    .filter(m => m.type === 'Impresión' && m.active)
+);
+
+// Get machines in maintenance
+const maintenanceMachines = computed(() =>
+  state.adminMachines()
+    .filter(m => m.status === 'Mantenimiento')
+);
+```
+
+## Integration with AuditService
+
+The StateService automatically logs the following events:
+
+- **Login:** User authentication with username and shift
+- **Logout:** Session termination
+- **Machine Updates:** Status changes (Operativa, Mantenimiento, etc.)
+
+All audit logs include:
+- User name and role (from current session)
+- Module: 'ACCESO' or 'OPERACIONES'
+- Action description
+- Timestamp and simulated IP address
+
+## Notes
+
+- All state is managed using Angular signals for fine-grained reactivity
+- The service is a singleton provided at root level
+- Machine data includes 35+ machines across Impresión, Troquelado, and Acabado areas
+- Default users include Jefatura, Supervisor, Operario, and Sistemas roles
+- Authentication is simplified for demonstration - integrate real backend in production

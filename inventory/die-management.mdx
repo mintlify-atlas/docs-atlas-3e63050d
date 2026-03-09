@@ -1,0 +1,431 @@
+---
+title: Die/Troquel Management
+description: Cutting die inventory with maintenance tracking and cliché compatibility
+---
+
+## Overview
+
+Dies (troqueles) are cutting tools used to shape and finish printed materials. P.FLEX tracks their status, location, and compatibility with printing clisés.
+
+<Frame>
+  <img src="https://via.placeholder.com/800x400/121921/ffffff?text=Die+Inventory+Interface" alt="Die Management Interface" />
+</Frame>
+
+## DieItem Data Model
+
+Complete interface from `inventory.models.ts:45-72`:
+
+<Expandable title="DieItem Interface (TypeScript)">
+  ```typescript
+  export interface DieItem {
+    id: string;
+    medida: string;              // Dimensions (e.g., "150x200")
+    ubicacion: string;           // Physical location code
+    serie: string;               // Unique serial number
+    linkedClises: string[];      // Associated cliché IDs
+    ancho_mm: number | null;     // Width in millimeters
+    avance_mm: number | null;    // Advance in millimeters
+    ancho_plg: number | null;    // Width in inches
+    avance_plg: number | null;   // Advance in inches
+    z: string;                   // Cylinder gear teeth
+    columnas: number | null;     // Number of columns/cavities
+    repeticiones: number | null; // Number of repetitions
+    material: string;            // Substrate material
+    forma: string;               // Shape (circular, rectangular, etc.)
+    cliente: string;             // Customer name
+    observaciones: string;       // Notes/observations
+    ingreso: string;             // Entry date
+    pb: string;                  // Base plate reference
+    sep_ava: string;             // Advance separation
+    estado: string;              // Status: OK, Desgaste, Dañado, Reparacion
+    cantidad: number | null;     // Quantity in stock
+    almacen: string;             // Warehouse code
+    mtl_acum: number | null;     // Accumulated usage meters
+    tipo_troquel: string;        // Die type classification
+    history: CliseHistory[];     // Operation history
+    hasConflict?: boolean;       // Import validation flag
+  }
+  ```
+</Expandable>
+
+### Field Descriptions
+
+<ResponseField name="serie" type="string" required>
+  Unique serial number identifying the die (e.g., "TRQ-2045-B")
+</ResponseField>
+
+<ResponseField name="medida" type="string">
+  Physical dimensions, typically in format "ANxAV" (width x advance)
+  
+  Examples:
+  - `150x200` = 150mm wide, 200mm advance
+  - `6x8` = 6 inches wide, 8 inches advance
+</ResponseField>
+
+<ResponseField name="ubicacion" type="string" required>
+  Physical location in warehouse. Numeric values auto-map to rack visualization:
+  - `45` → Rack TRQ-1, range 34-66
+  - `150` → Rack TRQ-2, range 134-166
+</ResponseField>
+
+<ResponseField name="z" type="string">
+  Cylinder gear teeth count. Must match corresponding cliché Z-value for compatibility.
+  
+  Common values: `"280"`, `"360"`, `"420"`
+</ResponseField>
+
+<ResponseField name="columnas" type="number">
+  Number of columns (cavities) in the die. Used for production yield calculations.
+</ResponseField>
+
+<ResponseField name="repeticiones" type="number">
+  Number of repetitions per cycle. Multiplied with `columnas` to calculate output per impression.
+</ResponseField>
+
+<ResponseField name="material" type="string">
+  Substrate material the die is designed for:
+  - PP (Polypropylene)
+  - PE (Polyethylene)
+  - BOPP (Biaxially Oriented Polypropylene)
+  - Paper
+</ResponseField>
+
+<ResponseField name="forma" type="string">
+  Die shape classification:
+  - `Circular`
+  - `Rectangular`
+  - `Irregular`
+  - Custom shapes
+  
+  Used for icon selection in UI (`getShapeIcon()` function)
+</ResponseField>
+
+<ResponseField name="estado" type="string">
+  Current die status:
+  
+  | Status | Meaning | Badge Color |
+  |--------|---------|-------------|
+  | OK | Production-ready | Green |
+  | Desgaste | Showing wear | Amber |
+  | Dañado | Damaged | Red |
+  | Reparacion | Under repair/maintenance | Amber |
+  
+  Reference: `inventory-die.component.ts:154-161`
+</ResponseField>
+
+<ResponseField name="linkedClises" type="string[]">
+  Array of cliché IDs that work with this die. Enables bidirectional compatibility checks:
+  
+  ```typescript
+  linkedClises: ["clise-abc123", "clise-def456"]
+  ```
+</ResponseField>
+
+<ResponseField name="history" type="CliseHistory[]">
+  Shared history interface with clisés. Tracks production runs, maintenance, repairs, etc.
+</ResponseField>
+
+## Excel Import
+
+Flexible column mapping for die imports:
+
+```typescript
+// inventory.service.ts:195-206
+readonly DIE_MAPPING = {
+  'serie': ['serie', 'codigo', 'code', 'id'],
+  'cliente': ['cliente', 'client'],
+  'medida': ['medida', 'dimensiones'],
+  'ubicacion': ['ubicación', 'ubicacion'],
+  'z': ['z', 'dientes'],
+  'material': ['material', 'sustrato'],
+  'forma': ['forma', 'shape'],
+  'estado': ['estado', 'status'],
+  'columnas': ['columnas', 'col', 'cols', 'cavidades', 'cav'],
+  'repeticiones': ['repeticiones', 'rep', 'reps']
+};
+```
+
+### Import Validation
+
+```typescript
+// inventory.service.ts:377-413
+normalizeDieData(rawData: any[]): { valid: DieItem[], conflicts: DieItem[] } {
+  const normalized = this.excelService.normalizeData(rawData, this.DIE_MAPPING);
+  const mapped: DieItem[] = normalized.map(row => ({
+    id: Math.random().toString(36).substr(2, 9),
+    serie: String(row.serie || '').trim(),
+    cliente: String(row.cliente || '').trim(),
+    medida: String(row.medida || '').trim(),
+    ubicacion: String(row.ubicacion || '').trim(),
+    z: String(row.z || ''),
+    columnas: this.excelService.parseNumber(row.columnas),
+    repeticiones: this.excelService.parseNumber(row.repeticiones),
+    material: String(row.material || '').trim(),
+    forma: String(row.forma || '').trim(),
+    estado: String(row.estado || 'OK').trim(),
+    // ... other fields with defaults
+    linkedClises: [],
+    history: [],
+    hasConflict: false
+  }));
+  
+  const valid = mapped.filter((i: DieItem) => i.serie && i.cliente);
+  const conflicts = mapped.filter((i: DieItem) => !i.serie || !i.cliente);
+  conflicts.forEach(c => c.hasConflict = true);
+  
+  return { valid, conflicts };
+}
+```
+
+<Warning>
+  Dies missing `serie` or `cliente` will be flagged as conflicts. Review import preview modal before confirming.
+</Warning>
+
+## KPI Statistics
+
+Dashboard calculates real-time metrics:
+
+```typescript
+// inventory-die.component.ts:454-460
+get stats() {
+  const total = this.dieItems.length;
+  const available = this.dieItems.filter(d => d.estado === 'OK').length;
+  const maintenance = this.dieItems.filter(d => 
+    d.estado === 'Reparacion' || d.estado === 'Mantenimiento'
+  ).length;
+  const critical = this.dieItems.filter(d => 
+    d.estado === 'Dañado' || d.estado === 'Desgaste'
+  ).length;
+  return { total, available, maintenance, critical };
+}
+```
+
+Displayed as KPI cards with color-coded badges:
+- **Total Troqueles**: All dies
+- **Disponibles**: OK status (green)
+- **En Mantenimiento**: Under repair (amber)
+- **Uso Crítico**: Damaged or worn (red)
+
+## Filtering & Sorting
+
+Advanced filtering with dynamic dropdowns:
+
+```typescript
+// Filter state
+filterZ = '';         // Filter by Z-value
+filterMaterial = '';  // Filter by material
+filterShape = '';     // Filter by shape
+searchTerm = '';      // Full-text search
+
+// Dynamic unique values based on search results
+get uniqueZs() {
+  return [...new Set(this.baseList.map(d => d.z).filter(z => !!z))]
+    .sort((a,b) => String(a).localeCompare(String(b), undefined, {numeric: true}));
+}
+
+get uniqueMaterials() {
+  return [...new Set(this.baseList.map(d => d.material).filter(m => !!m))].sort();
+}
+
+get uniqueShapes() {
+  return [...new Set(this.baseList.map(d => d.forma).filter(f => !!f))].sort();
+}
+```
+
+Reference: `inventory-die.component.ts:364-416`
+
+### Multi-Column Sorting
+
+Click any column header to sort:
+
+```typescript
+toggleSort(column: string) {
+  if (this.sortColumn === column) {
+    this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+  } else {
+    this.sortColumn = column;
+    this.sortDirection = 'asc';
+  }
+}
+```
+
+Sortable columns: medida, ubicacion, z, material, cliente, serie, estado
+
+## Shape Icons
+
+UI displays appropriate icons based on die shape:
+
+```typescript
+getShapeIcon(shape: string): string {
+  const s = (shape || '').toLowerCase();
+  if (s.includes('circ')) return 'circle';
+  if (s.includes('cuad') || s.includes('rect')) return 'crop_square';
+  return 'pentagon';  // Default for irregular shapes
+}
+```
+
+Reference: `inventory-die.component.ts:486-491`
+
+## CRUD Operations
+
+### Add Dies
+
+```typescript
+addDies(items: DieItem[]) {
+  this._dieItems.next([...items, ...this.dieItems]);
+  this.audit.log(
+    this.state.userName(), 
+    this.state.userRole(), 
+    'INVENTARIO', 
+    'Alta Troqueles', 
+    `Se agregaron ${items.length} troqueles.`
+  );
+}
+```
+
+Reference: `inventory.service.ts:254-257`
+
+### Update Die
+
+```typescript
+updateDie(item: DieItem) {
+  const list = this.dieItems;
+  const idx = list.findIndex(i => i.id === item.id);
+  if (idx !== -1) {
+    list[idx] = item;
+    this._dieItems.next([...list]);
+    this.audit.log(
+      this.state.userName(), 
+      this.state.userRole(), 
+      'INVENTARIO', 
+      'Editar Troquel', 
+      `Se modificó el troquel ${item.serie}.`
+    );
+  }
+}
+```
+
+Reference: `inventory.service.ts:259-267`
+
+## Detail Modal
+
+The die detail modal displays:
+
+1. **Header**: Serie/Código with edit toggle
+2. **Basic Info**: Cliente, Medida, Columnas, Repeticiones
+3. **Estado Selector**: Dropdown with status options:
+   - OK
+   - Desgaste
+   - Dañado
+   - En Reparación
+4. **Actions**: Save button (edit mode) or close button (view mode)
+
+Modal uses dark theme (`bg-[#1e293b]`) with inline form validation.
+
+Reference: `inventory-die.component.ts:193-255`
+
+<Accordion title="Modal Code Snippet">
+  ```html
+  <div *ngIf="showDieForm" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div class="bg-[#1e293b] rounded-xl shadow-2xl border border-white/10 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-fadeIn">
+      <div class="bg-[#0f172a] text-white px-6 py-4 flex justify-between items-center shrink-0 border-b border-white/10">
+        <div class="flex items-center gap-3">
+          <div class="p-2 bg-blue-600/20 rounded-lg text-blue-400 border border-blue-500/30">
+            <span class="material-icons text-xl">token</span>
+          </div>
+          <h3 class="font-bold text-lg">{{ isReadOnly ? 'Detalle de Troquel' : 'Editar Troquel' }}</h3>
+        </div>
+        <button (click)="closeModal()" class="text-slate-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/10">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      
+      <div class="flex-1 overflow-y-auto p-8 bg-[#1e293b]">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Serie / Código</label>
+            <input type="text" [(ngModel)]="currentDie.serie" [readonly]="isReadOnly" 
+                   class="w-full bg-[#0f172a] border border-slate-600 rounded-lg px-4 py-3 text-sm text-white font-mono font-bold focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder-slate-600">
+          </div>
+          <!-- Additional fields... -->
+        </div>
+      </div>
+    </div>
+  </div>
+  ```
+</Accordion>
+
+## Cliché Compatibility
+
+Dies can be linked to compatible clisés via the `linkedClises` array. This enables:
+
+- **Production Planning**: Quickly identify which clisés work with a given die
+- **Setup Optimization**: Reduce changeover time by grouping compatible jobs
+- **Maintenance Coordination**: Schedule die maintenance when compatible clisés are also offline
+
+<Tip>
+  Use Z-value matching as a starting point for compatibility, then manually verify and link clisés that have been successfully used together in production.
+</Tip>
+
+## Warehouse Integration
+
+Dies are automatically mapped to physical racks:
+
+```typescript
+// inventory.service.ts:318-335
+mapItemsToLayout() {
+  // ... clear existing items ...
+  
+  // Map Dies
+  dies.forEach(item => {
+    if (!item.ubicacion) return;
+    const locationNumber = parseInt(item.ubicacion.replace(/\D/g, ''));
+    if (!isNaN(locationNumber)) {
+      for (const rack of currentLayout) {
+        if (rack.type !== 'die') continue;
+        for (const level of rack.levels) {
+          for (const box of level.boxes) {
+            if (box.min !== undefined && box.max !== undefined && 
+                locationNumber >= box.min && locationNumber <= box.max) {
+              box.items.push(item);
+              return;
+            }
+          }
+        }
+      }
+    }
+  });
+  
+  this._layoutData.next([...currentLayout]);
+}
+```
+
+<Note>
+  Dies with non-numeric or invalid `ubicacion` values will not appear in the rack visualization. Ensure consistent location formatting.
+</Note>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Status Updates" icon="circle-check">
+    Update `estado` immediately after production runs or maintenance to maintain accurate availability
+  </Card>
+  
+  <Card title="Material Tracking" icon="box">
+    Always specify `material` to enable substrate-based filtering and compatibility checks
+  </Card>
+  
+  <Card title="Dimension Standards" icon="ruler">
+    Use consistent `medida` format (e.g., "150x200") for reliable parsing and comparisons
+  </Card>
+  
+  <Card title="History Logging" icon="clock">
+    Add history entries for repairs, sharpening, and production runs to track die lifecycle
+  </Card>
+</CardGroup>
+
+## Related Topics
+
+- [Cliché Management](./clise-management) - Printing plates that work with these dies
+- [Rack Layout](./rack-layout) - Physical warehouse location visualization
+- [Production Planning](../production/planning) - Using die/cliché combinations for job scheduling

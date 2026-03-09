@@ -1,0 +1,694 @@
+---
+title: 'Inventory Management'
+description: 'Comprehensive inventory tracking for tooling (clisés/dies), raw materials, and finished goods with visual rack layout'
+icon: 'warehouse'
+---
+
+## Overview
+
+The Inventory module manages three critical inventory types in P.FLEX: tooling (clisés and dies), raw materials, and finished goods. It includes visual rack layouts, Excel import workflows, and real-time stock tracking.
+
+<CardGroup cols={2}>
+  <Card title="Tooling Registry" icon="wrench">
+    Complete database of clisés (printing plates) and dies with usage history
+  </Card>
+  <Card title="Visual Rack Layout" icon="layer-group">
+    Interactive warehouse map showing physical locations
+  </Card>
+  <Card title="Finished Goods" icon="box-open">
+    Product inventory with quality status tracking (Liberado/Cuarentena/Retenido)
+  </Card>
+  <Card title="Excel Import" icon="file-excel">
+    Bulk import with automatic column mapping and conflict detection
+  </Card>
+</CardGroup>
+
+---
+
+## Inventory Categories
+
+### Clisés (Printing Plates)
+
+Clisés are photopolymer printing plates used in flexographic printing.
+
+```typescript
+// Clise Data Model (inventory.models.ts:22-43)
+export interface CliseItem {
+  id: string;
+  item: string;                  // Item code (primary identifier)
+  ubicacion: string;             // Physical location (e.g., "CL-1245")
+  descripcion: string;           // Product description
+  cliente: string;               // Client name
+  z: string;                     // Teeth count (anilox specification)
+  medidas: string;               // Dimensions
+  troquel: string;               // Associated die reference
+  linkedDies: string[];          // Array of linked die IDs
+  
+  // Dimensions
+  ancho: number | null;          // Width (mm)
+  avance: number | null;         // Repeat length (mm)
+  col: number | null;            // Columns
+  rep: number | null;            // Repeats
+  n_clises: number | null;       // Number of plates in set
+  
+  // Metadata
+  espesor: string;               // Plate thickness
+  ingreso: string;               // Entry date
+  maq: string;                   // Compatible machine
+  colores: string;               // Color specification
+  colorUsage?: CliseColorUsage[]; // Color usage tracking
+  mtl_acum: number | null;       // Accumulated meters printed
+  
+  // Lifecycle
+  history: CliseHistory[];       // Usage and maintenance history
+  hasConflict?: boolean;         // Import conflict flag
+}
+```
+
+### Dies (Troqueles)
+
+Dies are cutting tools used in the die-cutting stage.
+
+```typescript
+// Die Data Model (inventory.models.ts:45-72)
+export interface DieItem {
+  id: string;
+  serie: string;                 // Serial number (primary identifier)
+  medida: string;                // Dimensions description
+  ubicacion: string;             // Physical location
+  linkedClises: string[];        // Associated clisé IDs
+  
+  // Dimensions (dual unit support)
+  ancho_mm: number | null;       // Width in millimeters
+  avance_mm: number | null;      // Repeat in millimeters
+  ancho_plg: number | null;      // Width in inches
+  avance_plg: number | null;     // Repeat in inches
+  
+  // Specifications
+  z: string;                     // Teeth/pitch
+  columnas: number | null;       // Columns (across)
+  repeticiones: number | null;   // Repeats (around)
+  material: string;              // Die material
+  forma: string;                 // Shape/form
+  tipo_troquel: string;          // Die type
+  
+  // Status
+  estado: string;                // 'OK', 'Desgaste', 'Dañado'
+  cliente: string;               // Client name
+  almacen: string;               // Warehouse zone
+  mtl_acum: number | null;       // Accumulated usage
+  
+  // Lifecycle
+  history: CliseHistory[];       // Usage history
+  hasConflict?: boolean;         // Import conflict flag
+}
+```
+
+### Finished Goods (Stock PT)
+
+Product inventory awaiting quality release and dispatch.
+
+```typescript
+// Stock Item Model (inventory.models.ts:74-88)
+export interface StockItem {
+  id: string;
+  ot: string;                    // Work order reference
+  client: string;                // Customer name
+  product: string;               // Product description
+  
+  // Quantity (dual tracking)
+  quantity: number;              // Legacy total quantity
+  unit: string;                  // Legacy unit (Rollos/Cajas/Millares)
+  rolls?: number;                // NEW: Number of rolls
+  millares?: number;             // NEW: Thousand units
+  
+  // Location & Status
+  location: string;              // Warehouse position (e.g., "DES-A-01")
+  status: 'Liberado' | 'Cuarentena' | 'Retenido' | 'Despachado';
+  
+  // Metadata
+  entryDate: string;             // Entry timestamp
+  notes?: string;                // Quality/handling notes
+  palletId?: string;             // Pallet/lot identifier
+}
+```
+
+---
+
+## Visual Rack Layout System
+
+The inventory module includes an interactive warehouse map showing physical locations.
+
+### Rack Configuration
+
+```typescript
+// Rack Layout Structure (inventory.models.ts:90-108)
+export interface RackBox {
+  label: string;                 // Display label (e.g., "1081-1135")
+  min?: number;                  // Minimum item number in range
+  max?: number;                  // Maximum item number in range
+  items: (CliseItem | DieItem)[]; // Items in this box
+}
+
+export interface RackLevel {
+  levelNumber: number;           // 1 (bottom) to 3 (top)
+  boxes: RackBox[];              // Boxes on this level
+}
+
+export interface RackConfig {
+  id: string;                    // Rack identifier
+  name: string;                  // Display name
+  type: 'clise' | 'die';         // Content type
+  levels: RackLevel[];           // Vertical levels
+  orientation: 'vertical' | 'horizontal'; // Layout direction
+}
+```
+
+### Example Rack Definition
+
+```typescript
+// Clise Rack Example (inventory.service.ts:83-95)
+{
+  id: 'CL1',
+  name: 'RACK CL-1 (861-1190)',
+  type: 'clise',
+  orientation: 'vertical',
+  levels: [
+    { 
+      levelNumber: 3, 
+      boxes: [
+        { label: '1081-1135', min: 1081, max: 1135, items: [] },
+        { label: '1136-1190', min: 1136, max: 1190, items: [] }
+      ] 
+    },
+    { 
+      levelNumber: 2, 
+      boxes: [
+        { label: '971-1025', min: 971, max: 1025, items: [] },
+        { label: '1026-1080', min: 1026, max: 1080, items: [] }
+      ] 
+    },
+    { 
+      levelNumber: 1, 
+      boxes: [
+        { label: '861-915', min: 861, max: 915, items: [] },
+        { label: '916-970', min: 916, max: 970, items: [] }
+      ] 
+    }
+  ]
+}
+```
+
+### Auto-Mapping Logic
+
+Items are automatically placed in the correct rack position based on their location code:
+
+```typescript
+// Automatic Rack Mapping (inventory.service.ts:292-338)
+mapItemsToLayout() {
+  const currentLayout = this.layoutData;
+  const clises = this.cliseItems;
+  const dies = this.dieItems;
+
+  // Clear all boxes
+  currentLayout.forEach(rack => 
+    rack.levels.forEach(lvl => 
+      lvl.boxes.forEach(box => box.items = [])
+    )
+  );
+  
+  // Map Clises
+  clises.forEach(item => {
+    if (!item.ubicacion) return;
+    
+    // Extract numeric part from location (e.g., "CL-1245" => 1245)
+    const locationNumber = parseInt(item.ubicacion.replace(/\D/g, ''));
+    if (isNaN(locationNumber)) return;
+    
+    // Find matching rack box
+    for (const rack of currentLayout) {
+      if (rack.type !== 'clise') continue;
+      
+      for (const level of rack.levels) {
+        for (const box of level.boxes) {
+          if (box.min !== undefined && box.max !== undefined &&
+              locationNumber >= box.min && locationNumber <= box.max) {
+            box.items.push(item);
+            return; // Item placed, stop searching
+          }
+        }
+      }
+    }
+  });
+  
+  // Same logic for Dies...
+  this._layoutData.next([...currentLayout]);
+}
+```
+
+<Info>
+  The layout automatically updates whenever items are added or modified, ensuring the visual map always reflects current inventory.
+</Info>
+
+---
+
+## Finished Goods Management
+
+### Stock Item Display
+
+```typescript
+// Stock Table (inventory-stock.component.ts:88-151)
+<table class="w-full text-sm">
+  <thead>
+    <tr>
+      <th>OT / Pallet</th>
+      <th>Cliente / Producto</th>
+      <th>Ubicación</th>
+      <th>Cantidad</th>
+      <th>Estado</th>
+      <th>Acciones</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let item of filteredItems">
+      <!-- OT & Pallet ID -->
+      <td>
+        <div>
+          <span class="text-sm font-bold text-indigo-400 font-mono">
+            OT-{{ item.ot }}
+          </span>
+          <span class="text-[10px] text-slate-500 font-mono">
+            {{ item.palletId || 'S/N' }}
+          </span>
+        </div>
+      </td>
+      
+      <!-- Client & Product -->
+      <td>
+        <div class="text-xs font-bold text-slate-400 uppercase">
+          {{ item.client }}
+        </div>
+        {{ item.product }}
+        <div class="text-[10px] text-slate-500">
+          Ingreso: {{ item.entryDate | date:'dd/MM/yyyy HH:mm' }}
+        </div>
+      </td>
+      
+      <!-- Location -->
+      <td class="text-center">
+        <span class="bg-slate-800 border border-slate-600 px-2 py-1 rounded text-xs font-mono">
+          {{ item.location }}
+        </span>
+      </td>
+      
+      <!-- Quantity (NEW: Dual Display) -->
+      <td class="text-right">
+        <div class="flex flex-col items-end gap-1">
+          <div class="text-base font-bold text-white">
+            {{ item.rolls || 0 | number }} 
+            <span class="text-[10px] font-normal text-slate-500">Rollos</span>
+          </div>
+          <div class="text-xs font-medium text-indigo-300 bg-indigo-500/10 px-1.5 py-0.5 rounded">
+            {{ item.millares || 0 | number:'1.2-2' }} 
+            <span class="text-[9px] text-indigo-400/70">Millares</span>
+          </div>
+        </div>
+      </td>
+      
+      <!-- Status Badge -->
+      <td class="text-center">
+        <span [ngClass]="getStatusClass(item.status)">
+          {{ item.status }}
+        </span>
+      </td>
+      
+      <td>
+        <button (click)="openModal(item)">
+          <span class="material-icons">edit_note</span>
+        </button>
+      </td>
+    </tr>
+  </tbody>
+</table>
+```
+
+### Quality Status Workflow
+
+<Steps>
+  <Step title="Entry (Cuarentena)">
+    All new finished goods enter in **Cuarentena** status awaiting quality inspection.
+  </Step>
+  
+  <Step title="Quality Inspection">
+    Quality team performs tests and verifies specifications against work order.
+  </Step>
+  
+  <Step title="Release or Hold">
+    - **Liberado (Released):** Passed inspection, ready for dispatch
+    - **Retenido (Held):** Failed inspection, requires rework or scrap decision
+  </Step>
+  
+  <Step title="Dispatch">
+    Released items are picked and marked as **Despachado (Dispatched)** when shipped.
+  </Step>
+</Steps>
+
+### Status Badge Styling
+
+```typescript
+// Status Color Coding (inventory-stock.component.ts:402-410)
+getStatusClass(status: string): string {
+  switch(status) {
+    case 'Liberado': 
+      return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+    case 'Cuarentena': 
+      return 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20';
+    case 'Retenido': 
+      return 'bg-red-500/10 text-red-400 border border-red-500/20';
+    case 'Despachado': 
+      return 'bg-blue-500/10 text-blue-400 border border-blue-500/20 line-through';
+    default: 
+      return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
+  }
+}
+```
+
+---
+
+## Excel Import Workflow
+
+All inventory types support bulk import with intelligent column mapping.
+
+### Column Mapping Configuration
+
+The system uses flexible mapping to handle various Excel column names:
+
+```typescript
+// Clise Column Mapping (inventory.service.ts:183-193)
+readonly CLISE_MAPPING = {
+  'item': ['item', 'codigo', 'code', 'id', 'clise'],
+  'ubicacion': ['ubicación', 'ubicacion', 'location'],
+  'descripcion': ['descripción', 'descripcion', 'description'],
+  'cliente': ['cliente', 'client'],
+  'z': ['z', 'dientes'],
+  'ancho': ['ancho', 'width'],
+  'avance': ['avance', 'length'],
+  'ingreso': ['ingreso', 'fecha ingreso'],
+  'mtl_acum': ['mtl acum', 'mtl. acum.', 'metros acumulados']
+};
+
+// Stock Item Mapping (inventory.service.ts:208-218)
+readonly STOCK_MAPPING = {
+  'ot': ['ot', 'orden', 'op', 'nro'],
+  'client': ['cliente', 'razon social', 'customer'],
+  'product': ['producto', 'descripcion', 'item'],
+  'rolls': ['rollos', 'cant rollos', 'qty rolls', 'und', 'cantidad'],
+  'millares': ['millares', 'cant millares', 'mll', 'qty mll'],
+  'location': ['ubicacion', 'ubicación', 'posicion', 'loc'],
+  'status': ['estado', 'status', 'situacion', 'calidad'],
+  'palletId': ['pallet', 'lote', 'pallet id', 'id', 'caja'],
+  'notes': ['notas', 'observaciones', 'obs']
+};
+```
+
+<Note>
+  The mapping is case-insensitive and supports accented characters (e.g., "ubicación" or "ubicacion").
+</Note>
+
+### Import Preview Modal
+
+Before committing imports, users review a preview showing valid records and conflicts:
+
+```typescript
+// Import Preview Modal (inventory-stock.component.ts:246-346)
+<div *ngIf="showImportPreviewModal" class="fixed inset-0 z-[200]">
+  <div class="bg-[#1e293b] rounded-xl w-full max-w-6xl h-[85vh]">
+    <!-- Header -->
+    <div class="px-6 py-4 border-b border-slate-700">
+      <h3 class="font-bold text-white text-lg">
+        <span class="material-icons text-blue-500">upload_file</span>
+        Previsualización de Importación (Stock PT)
+      </h3>
+      <p class="text-xs text-slate-400 mt-1">
+        Se han procesado {{ previewData.length + conflictsData.length }} registros.
+      </p>
+    </div>
+    
+    <!-- Summary Stats -->
+    <div class="px-6 py-3 bg-[#1e293b] border-b border-slate-700 flex gap-4">
+      <div class="px-4 py-2 rounded bg-emerald-500/10 border border-emerald-500/20">
+        <span class="material-icons text-sm">check_circle</span>
+        {{ previewData.length }} Válidos
+      </div>
+      <div class="px-4 py-2 rounded bg-red-500/10 border border-red-500/20" 
+        [class.animate-pulse]="conflictsData.length > 0">
+        <span class="material-icons text-sm">warning</span>
+        {{ conflictsData.length }} Conflictos Detectados
+      </div>
+    </div>
+    
+    <!-- Preview Table -->
+    <table class="w-full">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Estado Imp.</th>
+          <th>OT</th>
+          <th>Cliente</th>
+          <th>Producto</th>
+          <th>Rollos</th>
+          <th>Millares</th>
+          <th>Estado Calidad</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Conflicts First (highlighted) -->
+        <tr *ngFor="let item of conflictsData; let i = index" 
+          class="bg-red-500/5 hover:bg-red-500/10">
+          <td>{{ i + 1 }}</td>
+          <td>
+            <span class="bg-red-500/20 text-red-400 border border-red-500/30">
+              Falta Dato
+            </span>
+          </td>
+          <td [ngClass]="item.ot ? 'text-white' : 'text-red-500 italic'">
+            {{ item.ot || '(VACÍO)' }}
+          </td>
+          <td [ngClass]="item.client ? 'text-slate-300' : 'text-red-500 italic'">
+            {{ item.client || '(VACÍO)' }}
+          </td>
+          <td>{{ item.product || '---' }}</td>
+          <td>{{ item.rolls | number }}</td>
+          <td>{{ item.millares | number }}</td>
+          <td>{{ item.status }}</td>
+        </tr>
+        
+        <!-- Valid Items -->
+        <tr *ngFor="let item of previewData; let i = index">
+          <td>{{ conflictsData.length + i + 1 }}</td>
+          <td>
+            <span class="bg-emerald-500/10 text-emerald-400">OK</span>
+          </td>
+          <td class="font-mono text-white font-bold">{{ item.ot }}</td>
+          <td>{{ item.client }}</td>
+          <td>{{ item.product }}</td>
+          <td class="font-mono">{{ item.rolls | number }}</td>
+          <td class="font-mono">{{ item.millares | number }}</td>
+          <td>{{ item.status }}</td>
+        </tr>
+      </tbody>
+    </table>
+    
+    <!-- Footer Actions -->
+    <div class="px-6 py-4 border-t flex justify-end gap-4">
+      <button (click)="cancelImport()">
+        Cancelar Importación
+      </button>
+      <button (click)="confirmImport()">
+        <span class="material-icons text-sm">save_alt</span>
+        Importar Todo (Resolver Conflictos Después)
+      </button>
+    </div>
+  </div>
+</div>
+```
+
+### Conflict Detection
+
+Conflicts are identified when required fields are missing:
+
+```typescript
+// Stock Data Normalization (inventory.service.ts:415-442)
+normalizeStockData(rawData: any[]): { valid: StockItem[], conflicts: StockItem[] } {
+  const normalized = this.excelService.normalizeData(rawData, this.STOCK_MAPPING);
+  
+  const mapped: StockItem[] = normalized.map(row => {
+    const rolls = this.excelService.parseNumber(row.rolls) || 0;
+    const millares = this.excelService.parseNumber(row.millares) || 0;
+    
+    return {
+      id: Math.random().toString(36).substr(2, 9),
+      ot: String(row.ot || '').trim(),
+      client: String(row.client || '').trim(),
+      product: String(row.product || '').trim(),
+      quantity: rolls,
+      unit: 'Rollos',
+      rolls: rolls,
+      millares: millares,
+      location: String(row.location || 'RECEPCIÓN').trim(),
+      status: this.normalizeStockStatus(row.status),
+      entryDate: new Date().toISOString(),
+      notes: String(row.notes || ''),
+      palletId: String(row.palletId || `PAL-${new Date().getFullYear()}-${Math.floor(Math.random()*10000)}`)
+    };
+  });
+
+  // Split into valid and conflicts
+  const valid = mapped.filter((i: StockItem) => i.ot && i.client);
+  const conflicts = mapped.filter((i: StockItem) => !i.ot || !i.client);
+
+  return { valid, conflicts };
+}
+```
+
+<Warning>
+  Conflicts are imported but flagged for manual review. Ensure OT and Client fields are corrected before using these records.
+</Warning>
+
+---
+
+## KPI Dashboard (Finished Goods)
+
+The stock view displays real-time inventory metrics:
+
+```typescript
+// Stock KPIs (inventory-stock.component.ts:393-400)
+get stats() {
+  return {
+    totalMillares: this.stockItems.reduce((acc, i) => 
+      acc + (i.millares || 0), 0
+    ),
+    quarantine: this.stockItems.filter(i => 
+      i.status === 'Cuarentena'
+    ).length,
+    released: this.stockItems.filter(i => 
+      i.status === 'Liberado'
+    ).length,
+    held: this.stockItems.filter(i => 
+      i.status === 'Retenido'
+    ).length
+  };
+}
+```
+
+<CardGroup cols={2}>
+  <Card title="Total Millares" icon="box">
+    Sum of all millares (thousand units) across all finished goods
+  </Card>
+  <Card title="En Cuarentena" icon="flask">
+    Count of items awaiting quality release
+  </Card>
+  <Card title="Disponibles (OK)" icon="circle-check">
+    Count of released items ready for dispatch
+  </Card>
+  <Card title="Retenidos" icon="ban">
+    Count of held items pending disposition decision
+  </Card>
+</CardGroup>
+
+---
+
+## Item History Tracking
+
+Both clisés and dies maintain complete lifecycle history:
+
+```typescript
+// History Event Model (inventory.models.ts:2-9)
+export interface CliseHistory {
+  date: string;
+  type: 'Producción' | 'Mantenimiento' | 'Reparación' | 
+    'Cambio Versión' | 'Creación' | 'Baja' | 'Otro';
+  description: string;
+  user: string;
+  machine?: string;
+  amount?: number;  // Meters/pieces processed
+}
+```
+
+**History Event Types:**
+
+- **Producción:** Used in production run (logged with meters/pieces)
+- **Mantenimiento:** Cleaned or serviced
+- **Reparación:** Repaired due to damage
+- **Cambio Versión:** Modified design (new version created)
+- **Creación:** Initial registration in system
+- **Baja:** Retired from service (scrapped)
+- **Otro:** Miscellaneous events
+
+---
+
+## Linked Items
+
+Clisés and dies can be linked to track matching tooling sets:
+
+```typescript
+// Linking (inventory.models.ts)
+clise.linkedDies: string[];   // Array of die IDs
+die.linkedClises: string[];    // Array of clisé IDs
+```
+
+<Info>
+  Linked items are used to validate resource availability during production planning. The system can alert if a clisé is assigned but its matching die is unavailable.
+</Info>
+
+---
+
+## Service Architecture
+
+The inventory service uses RxJS `BehaviorSubject` for reactive state management:
+
+```typescript
+// Inventory Service Structure (inventory.service.ts:12-33)
+export class InventoryService {
+  // State Subjects
+  private _cliseItems = new BehaviorSubject<CliseItem[]>([]);
+  private _dieItems = new BehaviorSubject<DieItem[]>([]);
+  private _stockItems = new BehaviorSubject<StockItem[]>([...]);
+  private _layoutData = new BehaviorSubject<RackConfig[]>([...]);
+
+  // Getters (Snapshots)
+  get cliseItems() { return this._cliseItems.value; }
+  get dieItems() { return this._dieItems.value; }
+  get stockItems() { return this._stockItems.value; }
+  get layoutData() { return this._layoutData.value; }
+
+  // Observables (Reactive)
+  get cliseItems$() { return this._cliseItems.asObservable(); }
+  get dieItems$() { return this._dieItems.asObservable(); }
+  get stockItems$() { return this._stockItems.asObservable(); }
+  get layoutData$() { return this._layoutData.asObservable(); }
+}
+```
+
+<Note>
+  Components subscribe to the `$` observables for automatic UI updates when inventory changes.
+</Note>
+
+---
+
+## Related Modules
+
+<CardGroup cols={2}>
+  <Card title="Production Tracking" icon="chart-line" href="/features/production">
+    Reports consume tooling data and update usage history
+  </Card>
+  <Card title="Order Management" icon="clipboard-list" href="/features/orders">
+    OTs reference required clisés and dies
+  </Card>
+  <Card title="Planning" icon="calendar" href="/features/planning">
+    Validates tooling availability before scheduling
+  </Card>
+  <Card title="Quality Control" icon="shield-check" href="/features/quality">
+    Manages finished goods quality status transitions
+  </Card>
+</CardGroup>

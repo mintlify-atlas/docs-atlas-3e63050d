@@ -1,0 +1,430 @@
+---
+title: Inventory Data Models
+description: TypeScript interfaces for inventory items, dies, clises, and warehouse management
+icon: boxes-stacked
+---
+
+## CliseItem
+
+Represents a printing plate (cliché) in the inventory system.
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the clise
+</ResponseField>
+
+<ResponseField name="item" type="string" required>
+  Item code
+</ResponseField>
+
+<ResponseField name="ubicacion" type="string" required>
+  Physical location in warehouse
+</ResponseField>
+
+<ResponseField name="descripcion" type="string" required>
+  Item description
+</ResponseField>
+
+<ResponseField name="cliente" type="string" required>
+  Client name
+</ResponseField>
+
+<ResponseField name="z" type="string" required>
+  Z classification
+</ResponseField>
+
+<ResponseField name="estandar" type="string" required>
+  Standard specification
+</ResponseField>
+
+<ResponseField name="medidas" type="string" required>
+  Measurements
+</ResponseField>
+
+<ResponseField name="troquel" type="string" required>
+  Associated die reference
+</ResponseField>
+
+<ResponseField name="linkedDies" type="string[]" required>
+  Array of linked die IDs
+</ResponseField>
+
+<ResponseField name="ancho" type="number | null" required>
+  Width in millimeters
+</ResponseField>
+
+<ResponseField name="avance" type="number | null" required>
+  Advance/pitch in millimeters
+</ResponseField>
+
+<ResponseField name="col" type="number | null" required>
+  Number of colors
+</ResponseField>
+
+<ResponseField name="rep" type="number | null" required>
+  Number of repetitions
+</ResponseField>
+
+<ResponseField name="n_clises" type="number | null" required>
+  Number of clises
+</ResponseField>
+
+<ResponseField name="espesor" type="string" required>
+  Thickness specification
+</ResponseField>
+
+<ResponseField name="ingreso" type="string" required>
+  Entry date
+</ResponseField>
+
+<ResponseField name="obs" type="string" required>
+  Observations
+</ResponseField>
+
+<ResponseField name="maq" type="string" required>
+  Machine compatibility
+</ResponseField>
+
+<ResponseField name="colores" type="string" required>
+  Color specification
+</ResponseField>
+
+<ResponseField name="colorUsage" type="CliseColorUsage[]">
+  Array of color usage statistics
+</ResponseField>
+
+<ResponseField name="n_ficha_fler" type="string" required>
+  Technical sheet number
+</ResponseField>
+
+<ResponseField name="mtl_acum" type="number | null" required>
+  Accumulated material meters
+</ResponseField>
+
+<ResponseField name="imagen" type="string">
+  Image URL or base64 data
+</ResponseField>
+
+<ResponseField name="history" type="CliseHistory[]" required>
+  History of usage and maintenance
+</ResponseField>
+
+<ResponseField name="hasConflict" type="boolean">
+  Indicates if there are conflicts (used for sync)
+</ResponseField>
+
+---
+
+## CliseColorUsage
+
+Tracks color usage statistics for a clise.
+
+<ResponseField name="name" type="string" required>
+  Color name
+</ResponseField>
+
+<ResponseField name="meters" type="number" required>
+  Meters printed with this color
+</ResponseField>
+
+---
+
+## CliseHistory
+
+Records historical events for clises and dies.
+
+<ResponseField name="date" type="string" required>
+  Event date (ISO format)
+</ResponseField>
+
+<ResponseField name="type" type="'Producción' | 'Mantenimiento' | 'Reparación' | 'Cambio Versión' | 'Creación' | 'Baja' | 'Otro'" required>
+  Type of event
+</ResponseField>
+
+<ResponseField name="description" type="string" required>
+  Event description
+</ResponseField>
+
+<ResponseField name="user" type="string" required>
+  User who performed the action
+</ResponseField>
+
+<ResponseField name="machine" type="string">
+  Machine involved (optional)
+</ResponseField>
+
+<ResponseField name="amount" type="number">
+  Quantity or measurement related to the event
+</ResponseField>
+
+---
+
+## DieItem
+
+Represents a die (troquel) used in cutting/stamping operations.
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the die
+</ResponseField>
+
+<ResponseField name="medida" type="string" required>
+  Measurement specification
+</ResponseField>
+
+<ResponseField name="ubicacion" type="string" required>
+  Physical location in warehouse
+</ResponseField>
+
+<ResponseField name="serie" type="string" required>
+  Series number
+</ResponseField>
+
+<ResponseField name="linkedClises" type="string[]" required>
+  Array of linked clise IDs
+</ResponseField>
+
+<ResponseField name="ancho_mm" type="number | null" required>
+  Width in millimeters
+</ResponseField>
+
+<ResponseField name="avance_mm" type="number | null" required>
+  Advance in millimeters
+</ResponseField>
+
+<ResponseField name="ancho_plg" type="number | null" required>
+  Width in inches
+</ResponseField>
+
+<ResponseField name="avance_plg" type="number | null" required>
+  Advance in inches
+</ResponseField>
+
+<ResponseField name="z" type="string" required>
+  Z classification
+</ResponseField>
+
+<ResponseField name="columnas" type="number | null" required>
+  Number of columns
+</ResponseField>
+
+<ResponseField name="repeticiones" type="number | null" required>
+  Number of repetitions
+</ResponseField>
+
+<ResponseField name="material" type="string" required>
+  Material type
+</ResponseField>
+
+<ResponseField name="forma" type="string" required>
+  Shape specification
+</ResponseField>
+
+<ResponseField name="cliente" type="string" required>
+  Client name
+</ResponseField>
+
+<ResponseField name="observaciones" type="string" required>
+  Observations
+</ResponseField>
+
+<ResponseField name="ingreso" type="string" required>
+  Entry date
+</ResponseField>
+
+<ResponseField name="pb" type="string" required>
+  PB specification
+</ResponseField>
+
+<ResponseField name="sep_ava" type="string" required>
+  Advance separation
+</ResponseField>
+
+<ResponseField name="estado" type="string" required>
+  Current state/condition
+</ResponseField>
+
+<ResponseField name="cantidad" type="number | null" required>
+  Quantity available
+</ResponseField>
+
+<ResponseField name="almacen" type="string" required>
+  Warehouse location
+</ResponseField>
+
+<ResponseField name="mtl_acum" type="number | null" required>
+  Accumulated material meters
+</ResponseField>
+
+<ResponseField name="tipo_troquel" type="string" required>
+  Die type classification
+</ResponseField>
+
+<ResponseField name="history" type="CliseHistory[]" required>
+  History of usage and maintenance
+</ResponseField>
+
+<ResponseField name="hasConflict" type="boolean">
+  Indicates if there are conflicts (used for sync)
+</ResponseField>
+
+---
+
+## StockItem
+
+Represents finished goods in warehouse inventory.
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the stock item
+</ResponseField>
+
+<ResponseField name="ot" type="string" required>
+  Reference to work order (OT)
+</ResponseField>
+
+<ResponseField name="client" type="string" required>
+  Client name
+</ResponseField>
+
+<ResponseField name="product" type="string" required>
+  Product description
+</ResponseField>
+
+<ResponseField name="quantity" type="number" required>
+  Stored quantity (legacy/total)
+</ResponseField>
+
+<ResponseField name="unit" type="string" required>
+  Unit of measurement (legacy)
+</ResponseField>
+
+<ResponseField name="rolls" type="number">
+  Number of rolls (new field)
+</ResponseField>
+
+<ResponseField name="millares" type="number">
+  Number of millares/thousands (new field)
+</ResponseField>
+
+<ResponseField name="location" type="string" required>
+  Location in finished goods warehouse
+</ResponseField>
+
+<ResponseField name="status" type="'Liberado' | 'Cuarentena' | 'Retenido' | 'Despachado'" required>
+  Current status of the stock
+</ResponseField>
+
+<ResponseField name="entryDate" type="string" required>
+  Date of entry to warehouse (ISO format)
+</ResponseField>
+
+<ResponseField name="notes" type="string">
+  Additional notes
+</ResponseField>
+
+<ResponseField name="palletId" type="string">
+  Pallet or lot identifier
+</ResponseField>
+
+---
+
+## RackConfig
+
+Configuration for warehouse rack storage systems.
+
+<ResponseField name="id" type="string" required>
+  Unique rack identifier
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Rack name
+</ResponseField>
+
+<ResponseField name="type" type="'clise' | 'die'" required>
+  Type of items stored (clises or dies)
+</ResponseField>
+
+<ResponseField name="levels" type="RackLevel[]" required>
+  Array of rack levels
+</ResponseField>
+
+<ResponseField name="orientation" type="'vertical' | 'horizontal'" required>
+  Physical orientation of the rack
+</ResponseField>
+
+---
+
+## RackLevel
+
+Represents a level within a rack structure.
+
+<ResponseField name="levelNumber" type="number" required>
+  Level number (1-based index)
+</ResponseField>
+
+<ResponseField name="boxes" type="RackBox[]" required>
+  Array of boxes/compartments at this level
+</ResponseField>
+
+---
+
+## RackBox
+
+Represents a storage box/compartment within a rack level.
+
+<ResponseField name="label" type="string" required>
+  Box label or identifier
+</ResponseField>
+
+<ResponseField name="min" type="number">
+  Minimum range value (for range-based storage)
+</ResponseField>
+
+<ResponseField name="max" type="number">
+  Maximum range value (for range-based storage)
+</ResponseField>
+
+<ResponseField name="items" type="(CliseItem | DieItem)[]" required>
+  Array of items stored in this box
+</ResponseField>
+
+## Usage Example
+
+```typescript
+import { CliseItem, DieItem, StockItem, RackConfig } from './models/inventory.models';
+
+const clise: CliseItem = {
+  id: 'CL-001',
+  item: 'CLI-2026-001',
+  ubicacion: 'A-12-3',
+  descripcion: 'Cliché 4 colores cliente ABC',
+  cliente: 'ABC Corporation',
+  ancho: 250,
+  avance: 150,
+  col: 4,
+  linkedDies: ['DIE-001', 'DIE-002'],
+  history: [
+    {
+      date: '2026-03-01',
+      type: 'Producción',
+      description: 'Producción OT-2026-001',
+      user: 'Juan Perez',
+      machine: 'IMP-01',
+      amount: 5000
+    }
+  ],
+  // ... additional fields
+};
+
+const stock: StockItem = {
+  id: 'STK-001',
+  ot: 'OT-2026-0150',
+  client: 'ABC Corporation',
+  product: 'Etiquetas adhesivas 100x50mm',
+  quantity: 50000,
+  unit: 'unidades',
+  rolls: 10,
+  millares: 50,
+  location: 'PT-A-05',
+  status: 'Liberado',
+  entryDate: '2026-03-09T10:30:00Z'
+};
+```

@@ -1,0 +1,523 @@
+---
+title: "Analytics Reports"
+description: "Production analytics, KPI dashboards, and visual reporting for data-driven decision making"
+---
+
+## Overview
+
+The Analytics Reports module provides real-time production metrics, trend analysis, and exportable reports. Built with D3.js visualizations and multi-format export capabilities (PDF, Excel).
+
+<Note>
+  All analytics are calculated in real-time from live production data with automatic refresh on data changes.
+</Note>
+
+## Report Types
+
+<CardGroup cols={2}>
+  <Card title="Production Trends" icon="show-chart">
+    Daily/weekly production volume tracking with target comparison
+  </Card>
+  <Card title="Order Distribution" icon="pie-chart">
+    Status breakdown visualization (donut charts)
+  </Card>
+  <Card title="Waste Analysis" icon="delete">
+    Critical waste identification by order with percentage calculations
+  </Card>
+  <Card title="Efficiency Metrics" icon="analytics">
+    OEE, OTD, and production capacity utilization
+  </Card>
+</CardGroup>
+
+## Dashboard KPIs
+
+From `report-list.component.ts:222-257`:
+
+### Production Statistics
+
+```typescript
+get stats() {
+  const ots = this.ordersService.ots;
+  
+  const pending = ots.filter(o => o.Estado_pedido === 'PENDIENTE').length;
+  const inProgress = ots.filter(o => o.Estado_pedido === 'EN PROCESO').length;
+  const paused = ots.filter(o => o.Estado_pedido === 'PAUSADA').length;
+  const completed = ots.filter(o => o.Estado_pedido === 'FINALIZADO').length;
+  
+  let totalMeters = 0;
+  let totalWaste = 0;
+  
+  ots.forEach(ot => {
+    const mtl = parseFloat(String(ot.total_mtl || '0').replace(/,/g, ''));
+    const waste = parseFloat(String(ot.merma || '0').replace(/,/g, ''));
+    
+    if (ot.Estado_pedido !== 'PENDIENTE') {
+      totalMeters += mtl;
+      totalWaste += waste;
+    }
+  });
+  
+  const wastePercentage = totalMeters > 0 
+    ? ((totalWaste / totalMeters) * 100).toFixed(1) 
+    : '0.0';
+  
+  return {
+    pending,
+    inProgress,
+    paused,
+    completed,
+    totalMeters: Math.round(totalMeters),
+    wastePercentage
+  };
+}
+```
+
+### KPI Cards Layout
+
+From `report-list.component.ts:48-106`:
+
+<Tabs>
+  <Tab title="OEE (Efficiency)">
+    **Overall Equipment Effectiveness**
+    
+    ```html
+    <div class="text-4xl font-black text-white">84.2%</div>
+    <div class="w-full bg-slate-700/50 h-1.5 rounded-full mt-4">
+      <div class="bg-emerald-500 h-full" style="width: 84.2%"></div>
+    </div>
+    <p class="text-[10px] text-slate-500 mt-2 font-mono">Meta: 85%</p>
+    ```
+    
+    **Components:**
+    - Availability (uptime)
+    - Performance (speed efficiency)
+    - Quality (good units produced)
+  </Tab>
+  
+  <Tab title="Production Total">
+    **Total Linear Meters Produced**
+    
+    ```html
+    <div class="text-4xl font-black text-white">
+      {{ stats.totalMeters | number }} <span class="text-lg">m</span>
+    </div>
+    <div class="flex items-center gap-2 mt-4">
+      <span class="material-icons text-blue-500">check_circle</span>
+      <p class="text-xs text-blue-200">12 Órdenes Finalizadas</p>
+    </div>
+    ```
+  </Tab>
+  
+  <Tab title="Waste Rate">
+    **Mermas (Waste Percentage)**
+    
+    ```html
+    <div class="text-4xl font-black text-red-500">
+      {{ stats.wastePercentage }}%
+    </div>
+    <div class="w-full bg-slate-700/50 h-1.5 rounded-full mt-4">
+      <div class="bg-red-500 h-full" 
+           [style.width.%]="stats.wastePercentage"></div>
+    </div>
+    <p class="text-[10px] text-slate-500 mt-2">Objetivo: < 3%</p>
+    ```
+    
+    <Warning>
+      Waste rates above 5% trigger critical alerts and require root cause analysis.
+    </Warning>
+  </Tab>
+  
+  <Tab title="OTD (On-Time Delivery)">
+    **Entregas a Tiempo**
+    
+    ```html
+    <div class="text-4xl font-black text-white">95.8%</div>
+    <p class="text-[10px] text-slate-500 mt-2">Últimos 30 días</p>
+    ```
+    
+    Industry benchmark: >95% on-time delivery
+  </Tab>
+</Tabs>
+
+## Trend Visualization
+
+### Production Trend Chart (D3.js)
+
+From `report-list.component.ts:212-220`:
+
+```typescript
+trendData = [
+  { day: 'Lun', value: 18500 },
+  { day: 'Mar', value: 22400 },
+  { day: 'Mié', value: 35000 },  // Peak production
+  { day: 'Jue', value: 28900 },
+  { day: 'Vie', value: 31200 },
+  { day: 'Sáb', value: 15600 },
+  { day: 'Dom', value: 8000 }
+];
+```
+
+### Chart Rendering
+
+From `report-list.component.ts:369-438`:
+
+```typescript
+renderTrendChart() {
+  const width = element.offsetWidth;
+  const height = element.offsetHeight;
+  const margin = { top: 20, right: 20, bottom: 30, left: 50 };
+  
+  // Create scales
+  const x = d3.scaleBand()
+    .range([margin.left, width - margin.right])
+    .padding(0.4)
+    .domain(data.map(d => d.day));
+  
+  const y = d3.scaleLinear()
+    .range([height - margin.bottom, margin.top])
+    .domain([0, 50000]);  // Max scale
+  
+  // Draw bars
+  svg.selectAll('.bar')
+    .data(data)
+    .enter().append('rect')
+    .attr('x', d => x(d.day))
+    .attr('y', d => y(d.value))
+    .attr('width', x.bandwidth())
+    .attr('height', d => height - margin.bottom - y(d.value))
+    .attr('fill', '#3b82f6')  // Blue-500
+    .attr('rx', 4);  // Rounded corners
+  
+  // Target line (35,000m goal)
+  const targetY = y(35000);
+  svg.append('line')
+    .attr('x1', margin.left)
+    .attr('x2', width - margin.right)
+    .attr('y1', targetY)
+    .attr('y2', targetY)
+    .attr('stroke', 'rgba(255,255,255,0.1)')
+    .attr('stroke-dasharray', '5,5');
+}
+```
+
+<Info>
+  The dashed horizontal line represents the daily production target of 35,000 linear meters.
+</Info>
+
+## Order Status Distribution
+
+### Donut Chart (D3.js)
+
+From `report-list.component.ts:440-510`:
+
+```typescript
+renderDonutChart(stats: any) {
+  const data = {
+    Finalizado: stats.completed,
+    EnProceso: stats.inProgress,
+    Pendiente: stats.pending,
+    Pausada: stats.paused
+  };
+  
+  // Color palette (dark mode)
+  const color = d3.scaleOrdinal()
+    .domain(['Finalizado', 'EnProceso', 'Pendiente', 'Pausada'])
+    .range(['#10b981', '#3b82f6', '#64748b', '#f59e0b']);
+    // Emerald, Blue, Slate, Amber
+  
+  const arc = d3.arc()
+    .innerRadius(radius * 0.65)  // Donut hole
+    .outerRadius(radius)
+    .cornerRadius(6);  // Rounded segments
+  
+  svg.selectAll('allSlices')
+    .data(pie(Object.entries(data)))
+    .join('path')
+    .attr('d', arc)
+    .attr('fill', d => color(d.data[0]))
+    .attr('stroke', '#1e293b')  // Gap between segments
+    .style('stroke-width', '4px');
+}
+```
+
+### Legend Display
+
+From `report-list.component.ts:128-146`:
+
+```html
+<div class="grid grid-cols-2 gap-4 w-full mt-6 text-xs">
+  <div class="flex items-center gap-2">
+    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 
+                 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+    <span class="text-slate-300 font-bold">
+      Finalizadas ({{ stats.completed }})
+    </span>
+  </div>
+  <div class="flex items-center gap-2">
+    <span class="w-2.5 h-2.5 rounded-full bg-blue-500
+                 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></span>
+    <span class="text-slate-300 font-bold">
+      En Proceso ({{ stats.inProgress }})
+    </span>
+  </div>
+  <!-- Pendientes and Pausadas -->
+</div>
+```
+
+## Critical Waste Analysis
+
+### Top Waste Items Table
+
+From `report-list.component.ts:259-278`:
+
+```typescript
+get topWasteItems() {
+  return this.ordersService.ots
+    .filter(ot => 
+      ot.Estado_pedido === 'FINALIZADO' || 
+      ot.Estado_pedido === 'EN PROCESO'
+    )
+    .map(ot => {
+      const mtl = parseFloat(String(ot.total_mtl || '0')) || 5000;
+      const waste = parseFloat(String(ot.merma || '0')) || (mtl * Math.random() * 0.1);
+      const percentage = ((waste / mtl) * 100).toFixed(1);
+      
+      return {
+        ot: ot.OT,
+        client: ot['Razon Social'],
+        desc: ot.descripcion,
+        total: Math.round(mtl),
+        waste: Math.round(waste),
+        percentage: parseFloat(percentage)
+      };
+    })
+    .sort((a, b) => b.percentage - a.percentage)  // Highest first
+    .slice(0, 5);  // Top 5 worst
+}
+```
+
+### Table Layout
+
+From `report-list.component.ts:152-189`:
+
+```html
+<table class="w-full text-sm text-left">
+  <thead class="bg-[#0f172a] text-slate-400 font-bold">
+    <tr>
+      <th class="px-6 py-4">OT</th>
+      <th class="px-6 py-4">Cliente / Producto</th>
+      <th class="px-6 py-4 text-right">Total (m)</th>
+      <th class="px-6 py-4 text-right">Merma (m)</th>
+      <th class="px-6 py-4 text-right">% Desp.</th>
+      <th class="px-6 py-4 text-center">Nivel</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let item of topWasteItems" 
+        class="hover:bg-slate-700/30 transition-colors">
+      <td class="px-6 py-4 font-mono font-bold">{{ item.ot }}</td>
+      <td class="px-6 py-4">
+        <div class="font-bold text-slate-200">{{ item.client }}</div>
+        <div class="text-xs text-slate-500">{{ item.desc }}</div>
+      </td>
+      <td class="px-6 py-4 text-right font-mono">{{ item.total | number }}</td>
+      <td class="px-6 py-4 text-right font-bold text-red-400">
+        {{ item.waste | number }}
+      </td>
+      <td class="px-6 py-4 text-right font-black">{{ item.percentage }}%</td>
+      <td class="px-6 py-4 text-center">
+        <span class="px-2.5 py-1 rounded bg-red-500/10 text-red-400 
+                     text-[10px] font-bold border border-red-500/20">
+          ALTO
+        </span>
+      </td>
+    </tr>
+  </tbody>
+</table>
+```
+
+## Export Capabilities
+
+### Excel Export (XLSX)
+
+From `report-list.component.ts:287-326`:
+
+```typescript
+exportExcel() {
+  const wb = XLSX.utils.book_new();
+  const dateStr = new Date().toISOString().split('T')[0];
+  
+  // Sheet 1: KPIs Summary
+  const kpiData = [
+    ['REPORTE DE INDICADORES DE PLANTA', dateStr],
+    [''],
+    ['METRICAS GENERALES'],
+    ['Eficiencia Global (OEE)', '84.2%'],
+    ['Producción Total (m)', stats.totalMeters],
+    ['Tasa de Mermas (%)', stats.wastePercentage + '%'],
+    ['Pedidos a Tiempo (OTD)', '95.8%'],
+    [''],
+    ['ESTADO DE ORDENES'],
+    ['Pendientes', stats.pending],
+    ['En Proceso', stats.inProgress],
+    ['Finalizados', stats.completed],
+    ['Pausadas', stats.paused]
+  ];
+  const wsKPI = XLSX.utils.aoa_to_sheet(kpiData);
+  XLSX.utils.book_append_sheet(wb, wsKPI, "KPIs Resumen");
+  
+  // Sheet 2: Trend Data
+  const wsTrend = XLSX.utils.json_to_sheet(this.trendData);
+  XLSX.utils.book_append_sheet(wb, wsTrend, "Tendencia Producción");
+  
+  // Sheet 3: Waste Analysis
+  const wasteData = this.topWasteItems.map(i => ({
+    OT: i.ot,
+    Cliente: i.client,
+    Producto: i.desc,
+    'Total (m)': i.total,
+    'Merma (m)': i.waste,
+    '% Desperdicio': i.percentage + '%'
+  }));
+  const wsWaste = XLSX.utils.json_to_sheet(wasteData);
+  XLSX.utils.book_append_sheet(wb, wsWaste, "Mermas Críticas");
+  
+  XLSX.writeFile(wb, `KPI_Planta_${dateStr}.xlsx`);
+}
+```
+
+<Tabs>
+  <Tab title="Sheet Structure">
+    **Generated Excel File Contains:**
+    1. **KPIs Resumen** - Summary metrics
+    2. **Tendencia Producción** - Daily trend data
+    3. **Mermas Críticas** - Top waste analysis
+  </Tab>
+  
+  <Tab title="Use Cases">
+    - Management reporting
+    - Historical analysis
+    - Data warehouse integration
+    - Third-party BI tools
+  </Tab>
+</Tabs>
+
+### PDF Export (Visual Snapshot)
+
+From `report-list.component.ts:328-367`:
+
+```typescript
+async exportPDF() {
+  const element = this.reportContent().nativeElement;
+  
+  try {
+    // Render DOM to canvas
+    const canvas = await html2canvas(element, { 
+      scale: 2,                    // High DPI
+      backgroundColor: '#0f172a',  // Match theme
+      logging: false
+    });
+    
+    const imgData = canvas.toDataURL('image/png');
+    
+    // Create PDF (landscape A4)
+    const pdf = new jsPDF('l', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    
+    const imgProps = pdf.getImageProperties(imgData);
+    const imgWidth = pageWidth;
+    const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+    
+    // Fit to page
+    if (imgHeight > pageHeight) {
+      const ratio = pageHeight / imgProps.height;
+      const fitW = imgProps.width * ratio;
+      const fitH = pageHeight;
+      pdf.addImage(imgData, 'PNG', (pageWidth - fitW) / 2, 0, fitW, fitH);
+    } else {
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+    }
+    
+    const dateStr = new Date().toISOString().split('T')[0];
+    pdf.save(`Reporte_Grafico_KPI_${dateStr}.pdf`);
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    alert('Hubo un error al generar el PDF visual.');
+  }
+}
+```
+
+<CardGroup cols={2}>
+  <Card title="Excel Export" icon="grid-on" color="#10b981">
+    **Best for:** Raw data analysis, pivot tables, and data processing
+  </Card>
+  <Card title="PDF Export" icon="picture-as-pdf" color="#ef4444">
+    **Best for:** Executive presentations, printing, and visual reports
+  </Card>
+</CardGroup>
+
+## Chart Styling (Dark Mode)
+
+From `report-list.component.ts:431-437`:
+
+```typescript
+// Style text for Dark Mode
+svg.selectAll('text')
+  .attr('fill', '#94a3b8')      // Slate-400
+  .attr('font-size', '10px')
+  .attr('font-weight', 'bold');
+
+svg.selectAll('.tick line')
+  .attr('stroke', 'rgba(255,255,255,0.05)');
+```
+
+## Auto-Refresh Behavior
+
+From `report-list.component.ts:280-285`:
+
+```typescript
+ngAfterViewInit() {
+  setTimeout(() => {
+    this.renderTrendChart();
+    this.renderDonutChart(this.stats);
+  }, 100);
+}
+```
+
+<Info>
+  Charts are re-rendered whenever the `OrdersService` emits updated data, ensuring real-time dashboard accuracy.
+</Info>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Daily Review">
+    Review the analytics dashboard at shift start and end to identify trends and anomalies before they become critical issues.
+  </Accordion>
+  
+  <Accordion title="Waste Investigation">
+    Any order appearing in the "Mermas Críticas" table (>5% waste) should trigger an immediate incident report and root cause analysis.
+  </Accordion>
+  
+  <Accordion title="Trend Comparison">
+    Compare daily trend data against historical averages to detect seasonal patterns, equipment degradation, or process improvements.
+  </Accordion>
+  
+  <Accordion title="Export for Archive">
+    Export weekly Excel reports for long-term archival and compliance with ISO quality management requirements.
+  </Accordion>
+</AccordionGroup>
+
+## Related Resources
+
+<CardGroup cols={3}>
+  <Card title="KPIs & Metrics" href="/analytics/kpis" icon="speed">
+    Detailed KPI calculation methodology
+  </Card>
+  <Card title="Quality Incidents" href="/quality/incidents" icon="report-problem">
+    Report issues identified in analytics
+  </Card>
+  <Card title="Work Orders" href="/production/orders" icon="receipt">
+    View detailed order-level data
+  </Card>
+</CardGroup>

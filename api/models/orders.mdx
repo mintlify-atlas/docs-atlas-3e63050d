@@ -1,0 +1,286 @@
+---
+title: Orders Data Models
+description: TypeScript interfaces for production orders and work orders
+icon: file-lines
+---
+
+## OT (Orden de Trabajo)
+
+The main interface representing a production work order in the P.FLEX system.
+
+<ResponseField name="descripcion" type="string" required>
+  Product description
+</ResponseField>
+
+<ResponseField name="Nro. Cotizacion" type="string" required>
+  Quote number
+</ResponseField>
+
+<ResponseField name="Nro. Ficha" type="string" required>
+  Technical sheet number
+</ResponseField>
+
+<ResponseField name="Pedido" type="string" required>
+  Order identifier
+</ResponseField>
+
+<ResponseField name="OT" type="string" required>
+  Work order number (primary identifier)
+</ResponseField>
+
+<ResponseField name="ORDEN COMPRA" type="string" required>
+  Purchase order number
+</ResponseField>
+
+<ResponseField name="Razon Social" type="string" required>
+  Client company name
+</ResponseField>
+
+<ResponseField name="Vendedor" type="string" required>
+  Sales representative name
+</ResponseField>
+
+<ResponseField name="Glosa" type="string" required>
+  Additional notes or remarks
+</ResponseField>
+
+<ResponseField name="MLL Pedido" type="string" required>
+  Order millares (thousands of units)
+</ResponseField>
+
+<ResponseField name="FECHA PED" type="string" required>
+  Order date
+</ResponseField>
+
+<ResponseField name="FECHA ENT" type="string" required>
+  Delivery date
+</ResponseField>
+
+<ResponseField name="FECHA INGRESO PLANTA" type="string">
+  Plant entry date (optional)
+</ResponseField>
+
+<ResponseField name="CANT PED" type="number | string" required>
+  Ordered quantity (can be numeric or string)
+</ResponseField>
+
+<ResponseField name="Und" type="string" required>
+  Unit of measurement
+</ResponseField>
+
+<ResponseField name="Material" type="string" required>
+  Material type
+</ResponseField>
+
+<ResponseField name="Ancho" type="string" required>
+  Width specification
+</ResponseField>
+
+<ResponseField name="Drawback" type="string" required>
+  Drawback tax information
+</ResponseField>
+
+<ResponseField name="impresion" type="string" required>
+  Printing specifications
+</ResponseField>
+
+<ResponseField name="merma" type="string" required>
+  Waste/scrap percentage
+</ResponseField>
+
+<ResponseField name="Medida" type="string" required>
+  Measurement specification
+</ResponseField>
+
+<ResponseField name="Avance" type="string" required>
+  Advance/pitch measurement
+</ResponseField>
+
+<ResponseField name="desarrollo" type="string" required>
+  Development specification
+</ResponseField>
+
+<ResponseField name="sep_avance" type="string" required>
+  Advance separation
+</ResponseField>
+
+<ResponseField name="calibre" type="string" required>
+  Gauge/thickness
+</ResponseField>
+
+<ResponseField name="num_colum" type="string" required>
+  Number of columns
+</ResponseField>
+
+<ResponseField name="adhesivo" type="string" required>
+  Adhesive type
+</ResponseField>
+
+<ResponseField name="acabado" type="string" required>
+  Finishing type
+</ResponseField>
+
+<ResponseField name="troquel" type="string" required>
+  Die reference
+</ResponseField>
+
+<ResponseField name="SentidoFinal" type="string" required>
+  Final direction/orientation
+</ResponseField>
+
+<ResponseField name="diametuco" type="string" required>
+  Core diameter
+</ResponseField>
+
+<ResponseField name="ObsDes" type="string" required>
+  Design observations
+</ResponseField>
+
+<ResponseField name="ObsCot" type="string" required>
+  Quote observations
+</ResponseField>
+
+<ResponseField name="medidavend" type="string" required>
+  Sales measurement
+</ResponseField>
+
+<ResponseField name="maquina" type="string" required>
+  Machine name
+</ResponseField>
+
+<ResponseField name="anchoEtiq" type="string" required>
+  Label width
+</ResponseField>
+
+<ResponseField name="ancho_mate" type="string" required>
+  Material width
+</ResponseField>
+
+<ResponseField name="forma" type="string" required>
+  Shape specification
+</ResponseField>
+
+<ResponseField name="tipoimpre1" type="string" required>
+  Print type 1
+</ResponseField>
+
+<ResponseField name="dispensado" type="string" required>
+  Dispensing specification
+</ResponseField>
+
+<ResponseField name="cant_etq_xrollohojas" type="string" required>
+  Quantity of labels per roll/sheet
+</ResponseField>
+
+<ResponseField name="fechaPrd" type="string" required>
+  Production date
+</ResponseField>
+
+<ResponseField name="codmaquina" type="string" required>
+  Machine code
+</ResponseField>
+
+<ResponseField name="s_merma" type="string" required>
+  Waste surcharge
+</ResponseField>
+
+<ResponseField name="mtl_sin_merma" type="string" required>
+  Material without waste
+</ResponseField>
+
+<ResponseField name="total_mtl" type="string" required>
+  Total material
+</ResponseField>
+
+<ResponseField name="total_M2" type="string" required>
+  Total square meters
+</ResponseField>
+
+<ResponseField name="LARGO" type="string" required>
+  Length
+</ResponseField>
+
+<ResponseField name="col_ficha" type="string" required>
+  Sheet colors
+</ResponseField>
+
+<ResponseField name="prepicado_h" type="string" required>
+  Horizontal pre-perforation
+</ResponseField>
+
+<ResponseField name="prepicado_v" type="string" required>
+  Vertical pre-perforation
+</ResponseField>
+
+<ResponseField name="semicorte" type="string" required>
+  Half-cut specification
+</ResponseField>
+
+<ResponseField name="corte_seguridad" type="string" required>
+  Security cut
+</ResponseField>
+
+<ResponseField name="forma_emb" type="string" required>
+  Packaging form
+</ResponseField>
+
+<ResponseField name="und_negocio" type="string" required>
+  Business unit
+</ResponseField>
+
+<ResponseField name="Linea_produccion" type="string" required>
+  Production line
+</ResponseField>
+
+<ResponseField name="p_cant_rollo_ficha" type="string" required>
+  Roll quantity per sheet
+</ResponseField>
+
+<ResponseField name="Estado_pedido" type="string" required>
+  Order status
+</ResponseField>
+
+<ResponseField name="r_ref_ot" type="string" required>
+  OT reference
+</ResponseField>
+
+<ResponseField name="logo_tuco" type="string" required>
+  Core logo specification
+</ResponseField>
+
+<ResponseField name="troquel_ficha" type="string" required>
+  Sheet die reference
+</ResponseField>
+
+<ResponseField name="acabado_ficha" type="string" required>
+  Sheet finishing
+</ResponseField>
+
+<ResponseField name="t_acabado" type="string" required>
+  Finishing type code
+</ResponseField>
+
+<ResponseField name="ta_acabado" type="string" required>
+  Finishing type abbreviation
+</ResponseField>
+
+<ResponseField name="d_max_bob" type="string" required>
+  Maximum roll diameter
+</ResponseField>
+
+## Usage Example
+
+```typescript
+import { OT } from './models/orders.models';
+
+const workOrder: OT = {
+  descripcion: 'Etiquetas adhesivas personalizadas',
+  'Nro. Cotizacion': 'COT-2026-001',
+  'Nro. Ficha': 'FCH-12345',
+  Pedido: 'PED-2026-150',
+  OT: 'OT-2026-0150',
+  'ORDEN COMPRA': 'OC-CLIENT-789',
+  'Razon Social': 'Corporación ABC S.A.',
+  // ... additional fields
+};
+```

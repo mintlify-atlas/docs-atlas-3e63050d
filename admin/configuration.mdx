@@ -1,0 +1,382 @@
+---
+title: 'System Configuration'
+description: 'Configure global system settings and operational parameters'
+icon: 'sliders'
+---
+
+## Overview
+
+The System Configuration module manages global settings that affect the entire P.FLEX platform, including shift schedules, security policies, PWA settings, and plant-wide parameters.
+
+## Configuration Data Model
+
+The `SystemConfig` interface defines all system-wide settings:
+
+<ParamField path="shiftName1" type="string" required>
+  Name of the first shift (e.g., "Turno Día", "Morning Shift")
+</ParamField>
+
+<ParamField path="shiftTime1" type="string" required>
+  Start time for first shift in HH:mm format (e.g., "06:00")
+</ParamField>
+
+<ParamField path="shiftName2" type="string" required>
+  Name of the second shift (e.g., "Turno Noche", "Night Shift")
+</ParamField>
+
+<ParamField path="shiftTime2" type="string" required>
+  Start time for second shift in HH:mm format (e.g., "18:00")
+</ParamField>
+
+<ParamField path="passwordExpiryWarningDays" type="number" required>
+  Number of days before password expiry to show warning (default: 15)
+</ParamField>
+
+<ParamField path="passwordPolicyDays" type="number" required>
+  Password expiration period in days (default: 90)
+</ParamField>
+
+<ParamField path="plantName" type="string" required>
+  Display name of the production facility
+</ParamField>
+
+<ParamField path="autoLogoutMinutes" type="number" required>
+  Automatic logout timeout in minutes for inactive sessions (default: 30)
+</ParamField>
+
+<ParamField path="operatorMessage" type="string" required>
+  Message displayed on operator terminals (broadcast communication)
+</ParamField>
+
+## Default Configuration
+
+The system initializes with these default values:
+
+```typescript
+// Source: state.service.ts:32-42
+readonly config = signal<SystemConfig>({
+  shiftName1: 'Turno Día',
+  shiftTime1: '06:00',
+  shiftName2: 'Turno Noche',
+  shiftTime2: '18:00',
+  passwordExpiryWarningDays: 15,
+  passwordPolicyDays: 90,
+  plantName: 'Planta Central - Zona Industrial',
+  autoLogoutMinutes: 30,
+  operatorMessage: 'Recordar verificar el estado de los clichés y troqueles al finalizar el turno noche. Reportar daños en Incidencias.'
+});
+```
+
+## Configuration Management
+
+### Updating Configuration
+
+Modify system settings using `updateConfig()`:
+
+```typescript
+// Source: admin.service.ts:90-93
+updateConfig(newConfig: SystemConfig) {
+  this.state.config.set(newConfig);
+  this.audit.log(this.state.userName(), this.state.userRole(), 'ADMIN', 
+    'Configuración', 
+    'Se actualizaron los parámetros globales del sistema.');
+}
+```
+
+<Steps>
+  <Step title="Access Configuration">
+    Navigate to Admin → Configuration to access system settings
+  </Step>
+  
+  <Step title="Modify Settings">
+    Update parameters in their respective sections:
+    - Plant parameters
+    - Shift schedules
+    - Security policies
+    - PWA settings
+    - Communication messages
+  </Step>
+  
+  <Step title="Save Changes">
+    Click "Guardar Cambios" to apply configuration updates. Changes take effect immediately.
+  </Step>
+</Steps>
+
+<Warning>
+  Configuration changes affect all users immediately. Test changes during low-activity periods.
+</Warning>
+
+## Configuration Sections
+
+### Plant Parameters
+
+Configure facility-specific settings:
+
+<AccordionGroup>
+  <Accordion title="Shift Schedules" icon="clock">
+    Configure shift names and start times:
+    
+    ```typescript
+    // Source: admin-config.component.ts:32-44
+    <input [(ngModel)]="tempConfig.shiftTime1" 
+           type="time" />
+    <input [(ngModel)]="tempConfig.shiftName1" 
+           type="text" />
+    
+    <input [(ngModel)]="tempConfig.shiftTime2" 
+           type="time" />
+    <input [(ngModel)]="tempConfig.shiftName2" 
+           type="text" />
+    ```
+    
+    **Morning Shift**: Default 06:00 ("Turno Día")
+    
+    **Night Shift**: Default 18:00 ("Turno Noche")
+  </Accordion>
+  
+  <Accordion title="Active Areas" icon="map">
+    Define production areas as semicolon-separated list:
+    
+    ```
+    Inyección; Ensamblaje; Pintura; Control de Calidad; Logística
+    ```
+    
+    These areas are used for:
+    - Operator area assignments
+    - Machine organization
+    - Production reporting
+  </Accordion>
+  
+  <Accordion title="Maintenance Mode" icon="tools">
+    Enable global maintenance mode to:
+    - Restrict production operations
+    - Display maintenance notice to all users
+    - Allow only administrative access
+  </Accordion>
+</AccordionGroup>
+
+### PWA & Synchronization
+
+Configure Progressive Web App and offline sync behavior:
+
+<ParamField path="Backup Frequency" type="select">
+  How often to backup data:
+  - `Cada 1 Hora` - Hourly backups
+  - `Cada 4 Horas` - Every 4 hours (default)
+  - `Diario (00:00)` - Daily at midnight
+</ParamField>
+
+<ParamField path="Offline Retention" type="select">
+  How long to keep offline data:
+  - `3 Días` - 3 days
+  - `7 Días` - 7 days (default)
+  - `30 Días` - 30 days
+</ParamField>
+
+<ParamField path="Conflict Resolution" type="radio">
+  Strategy for handling sync conflicts:
+  
+  **Server Wins**: Central data takes priority
+  
+  **Device Wins**: Local changes take priority
+  
+  **Manual**: Require operator intervention
+</ParamField>
+
+```typescript
+// Source: admin-config.component.ts:98-108
+<label class="flex items-center ...">
+  <input checked type="radio" name="conflict-rule" />
+  <span>Servidor gana (Prioridad a datos centrales)</span>
+</label>
+<label class="flex items-center ...">
+  <input type="radio" name="conflict-rule" />
+  <span>Dispositivo gana (Prioridad local)</span>
+</label>
+<label class="flex items-center ...">
+  <input type="radio" name="conflict-rule" />
+  <span>Manual (Requiere intervención)</span>
+</label>
+```
+
+<Info>
+  Enable "Sincronización solo Wi-Fi" to prevent mobile data usage during sync operations.
+</Info>
+
+### Communication to Plant
+
+Broadcast messages to operator terminals:
+
+```typescript
+// Source: admin-config.component.ts:133-136
+<textarea [(ngModel)]="tempConfig.operatorMessage" 
+          rows="2" 
+          class="block w-full ..." />
+<div class="...">VISIBLE EN TERMINALES</div>
+```
+
+<Card title="Operator Message" icon="bullhorn">
+  Messages appear on all operator terminals in real-time
+  
+  **Use cases**:
+  - Shift handover instructions
+  - Safety reminders
+  - Maintenance notices
+  - Quality alerts
+  
+  **Default**: "Recordar verificar el estado de los clichés y troqueles al finalizar el turno noche. Reportar daños en Incidencias."
+</Card>
+
+### Security & Logs
+
+Configure security policies and audit settings:
+
+<ParamField path="Password Expiry" type="number">
+  Days until password expires (default: 90)
+  
+  System warns users based on `passwordExpiryWarningDays` (default: 15 days before expiry)
+</ParamField>
+
+<ParamField path="Failed Login Attempts" type="select">
+  Maximum failed login attempts before account lockout:
+  - `3 Intentos`
+  - `5 Intentos` (default)
+</ParamField>
+
+<ParamField path="2FA Obligatorio" type="boolean">
+  Require two-factor authentication for admin roles (Jefatura, Sistemas)
+  
+  **Default**: Enabled
+</ParamField>
+
+```typescript
+// Source: admin-config.component.ts:157-159
+<input class="..." type="number" value="90" />
+<span class="...">días</span>
+```
+
+## Configuration Component
+
+The configuration component manages temporary state:
+
+```typescript
+// Source: admin-config.component.ts:213-226
+export class AdminConfigComponent {
+  state = inject(StateService);
+  adminService = inject(AdminService);
+  tempConfig: SystemConfig;
+
+  constructor() {
+    // Copy current config to temporary state
+    this.tempConfig = { ...this.adminService.config() };
+  }
+
+  saveConfig() {
+    this.adminService.updateConfig(this.tempConfig);
+    alert('Configuración guardada correctamente.');
+  }
+}
+```
+
+<Note>
+  Configuration changes are stored in `tempConfig` until saved, allowing users to cancel modifications.
+</Note>
+
+## Audit Activity Preview
+
+The configuration page displays recent audit activity:
+
+```typescript
+// Source: admin-config.component.ts:179-196
+<table class="min-w-full divide-y divide-white/5">
+  <thead>
+    <tr>
+      <th>Usuario</th>
+      <th>Acción</th>
+      <th>Fecha</th>
+      <th>IP</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="hover:bg-white/5 ...">
+      <td class="...">jperez</td>
+      <td class="...">Exportar Reporte</td>
+      <td class="...">Ayer, 16:30</td>
+      <td class="...">192.168.1.18</td>
+    </tr>
+  </tbody>
+</table>
+```
+
+Click "Ver Logs Completos" to access the full audit trail.
+
+## Configuration Access Control
+
+<Warning>
+  Only users with `Sistemas` role or `Admin Total` permission can modify system configuration.
+</Warning>
+
+Permission check:
+```typescript
+// Requires role: 'Sistemas'
+// Or permission: 'Admin Total'
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Shift Scheduling" icon="calendar">
+    - Set shift times to match physical plant operations
+    - Use clear, descriptive shift names
+    - Coordinate with HR for accurate shift rosters
+  </Card>
+  
+  <Card title="Security Policies" icon="shield">
+    - Enforce 90-day password rotation
+    - Enable 2FA for administrative accounts
+    - Monitor failed login attempts
+    - Review audit logs regularly
+  </Card>
+  
+  <Card title="Offline Sync" icon="cloud">
+    - Configure appropriate retention periods
+    - Use Wi-Fi-only sync for large datasets
+    - Test conflict resolution strategy
+    - Monitor sync status and errors
+  </Card>
+  
+  <Card title="Operator Communication" icon="message">
+    - Keep messages concise and actionable
+    - Update before shift changes
+    - Include safety-critical information
+    - Verify message visibility on terminals
+  </Card>
+</CardGroup>
+
+## Audit Logging
+
+All configuration changes are logged:
+
+```typescript
+// Source: admin.service.ts:92
+this.audit.log(this.state.userName(), this.state.userRole(), 
+  'ADMIN', 'Configuración', 
+  'Se actualizaron los parámetros globales del sistema.');
+```
+
+| Field | Value |
+|-------|-------|
+| Module | `ADMIN` |
+| Action | `Configuración` |
+| Details | "Se actualizaron los parámetros globales del sistema." |
+| User | Current logged-in user |
+| Timestamp | Automatic |
+| IP | User's IP address |
+
+## Code Reference
+
+Key source files:
+- **Data Model**: `src/features/admin/models/admin.models.ts:20-30`
+- **Service Method**: `src/features/admin/services/admin.service.ts:86-93`
+- **UI Component**: `src/features/admin/components/admin-config.component.ts`
+- **Default Config**: `src/services/state.service.ts:32-42`

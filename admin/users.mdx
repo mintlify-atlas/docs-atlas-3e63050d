@@ -1,0 +1,229 @@
+---
+title: 'User Management'
+description: 'Manage system users, roles, and access permissions in P.FLEX'
+icon: 'users'
+---
+
+## Overview
+
+The User Management module allows administrators to create, edit, and manage user accounts across the P.FLEX industrial ERP system. Each user is assigned a role that determines their permissions and accessible areas.
+
+## User Data Model
+
+The `AppUser` interface defines the core user structure:
+
+<ParamField path="id" type="string" required>
+  Unique identifier for the user account
+</ParamField>
+
+<ParamField path="name" type="string" required>
+  Full name of the user (e.g., "Juan Pérez")
+</ParamField>
+
+<ParamField path="username" type="string" required>
+  Login username for authentication
+</ParamField>
+
+<ParamField path="role" type="UserRole" required>
+  Assigned role determining permissions. Valid values:
+  - `Jefatura` - Management level access
+  - `Supervisor` - Shift supervision and task assignment
+  - `Asistente` - Assistant level access
+  - `Operario` - Production operator
+  - `Encargado` - Department manager
+  - `Sistemas` - System administrator
+</ParamField>
+
+<ParamField path="active" type="boolean" required>
+  Account status. `true` = active, `false` = disabled
+</ParamField>
+
+<ParamField path="assignedAreas" type="string[]" optional>
+  Production areas accessible to the user (only for `Operario` role)
+  
+  Example: `["Impresión", "Troquelado", "Acabado"]`
+</ParamField>
+
+## User Management Operations
+
+### Creating a User
+
+To create a new user account, use the `addAdminUser()` method:
+
+```typescript
+// Source: admin.service.ts:18-29
+addAdminUser(user: Partial<AppUser>) {
+  const newUser: AppUser = {
+    id: Math.random().toString(36).substr(2, 9),
+    name: user.name || '',
+    username: user.username || '',
+    role: user.role || 'Operario',
+    active: user.active ?? true,
+    assignedAreas: user.assignedAreas || []
+  };
+  this.state.adminUsers.update(users => [...users, newUser]);
+  this.audit.log(this.state.userName(), this.state.userRole(), 'ADMIN', 
+    'Crear Usuario', `Usuario creado: ${newUser.username} (${newUser.role})`);
+}
+```
+
+<Steps>
+  <Step title="Open User Modal">
+    Click the "Nuevo Usuario" button in the user management interface
+  </Step>
+  
+  <Step title="Enter User Details">
+    Fill in the required fields:
+    - Full name (e.g., "Juan Pérez")
+    - Username (e.g., "jperez")
+    - Select role from dropdown
+    - Set account status (Active/Inactive)
+  </Step>
+  
+  <Step title="Assign Production Areas (Operario only)">
+    If role is `Operario`, select production areas:
+    - Impresión
+    - Troquelado
+    - Acabado
+    - Empaquetado
+  </Step>
+  
+  <Step title="Save User">
+    Click "Guardar Usuario" to create the account. An audit log entry is automatically generated.
+  </Step>
+</Steps>
+
+### Updating a User
+
+Modify existing user accounts using `updateAdminUser()`:
+
+```typescript
+// Source: admin.service.ts:31-34
+updateAdminUser(updatedUser: AppUser) {
+  this.state.adminUsers.update(users => 
+    users.map(u => u.id === updatedUser.id ? updatedUser : u)
+  );
+  this.audit.log(this.state.userName(), this.state.userRole(), 'ADMIN', 
+    'Editar Usuario', `Usuario modificado: ${updatedUser.username}`);
+}
+```
+
+<Info>
+  All user modifications are tracked in the audit log with timestamp, admin user, and change details.
+</Info>
+
+### Deleting a User
+
+Remove user accounts using `deleteAdminUser()`:
+
+```typescript
+// Source: admin.service.ts:36-40
+deleteAdminUser(id: string) {
+  const user = this.state.adminUsers().find(u => u.id === id);
+  this.state.adminUsers.update(users => users.filter(u => u.id !== id));
+  this.audit.log(this.state.userName(), this.state.userRole(), 'ADMIN', 
+    'Eliminar Usuario', `Usuario eliminado: ${user?.username || id}`);
+}
+```
+
+<Warning>
+  User deletion is permanent. Ensure you want to remove the account before confirming.
+</Warning>
+
+## User Interface Features
+
+### Search and Filter
+
+The user management interface includes real-time search capabilities:
+
+```typescript
+// Source: admin-users.component.ts:315-321
+get filteredUsers() {
+  const term = this.userSearch.toLowerCase();
+  return this.adminService.users().filter(u => 
+    u.name.toLowerCase().includes(term) || 
+    u.username.toLowerCase().includes(term)
+  );
+}
+```
+
+Search filters by:
+- User name
+- Username/email
+- Role
+
+### Area Assignment for Operators
+
+Production operators (`Operario` role) can be assigned specific production areas:
+
+```typescript
+// Source: admin-users.component.ts:340-354
+isAreaSelected(area: string): boolean {
+  return (this.tempUser.assignedAreas || []).includes(area);
+}
+
+toggleArea(area: string) {
+  if (!this.tempUser.assignedAreas) {
+    this.tempUser.assignedAreas = [];
+  }
+  
+  if (this.isAreaSelected(area)) {
+    this.tempUser.assignedAreas = 
+      this.tempUser.assignedAreas.filter((a: string) => a !== area);
+  } else {
+    this.tempUser.assignedAreas.push(area);
+  }
+}
+```
+
+Available production areas:
+- **Impresión** - Printing operations
+- **Troquelado** - Die-cutting operations
+- **Acabado** - Finishing operations
+- **Empaquetado** - Packaging operations
+
+## User Status Management
+
+Users can be set to active or inactive status:
+
+<ResponseField name="active" type="boolean">
+  **Active** (`true`): User can log in and access the system
+  
+  **Inactive** (`false`): User account is disabled and cannot log in
+</ResponseField>
+
+## Audit Logging
+
+All user management operations are automatically logged:
+
+| Action | Log Entry | Details |
+|--------|-----------|----------|
+| Create User | `Crear Usuario` | Username and assigned role |
+| Update User | `Editar Usuario` | Username of modified account |
+| Delete User | `Eliminar Usuario` | Username of deleted account |
+
+View complete audit logs at `/audit` or see [Audit Logs documentation](/admin/audit-logs).
+
+## Permission Requirements
+
+<Note>
+  User management requires the `Sistemas` or `Jefatura` role with `Gestión Usuarios` permission.
+</Note>
+
+## Best Practices
+
+<Card title="Security Recommendations" icon="shield">
+  - Use strong usernames that don't reveal personal information
+  - Assign the minimum required role for each user
+  - Regularly review and disable inactive accounts
+  - For Operarios, only assign areas where they work
+  - Monitor audit logs for suspicious user changes
+</Card>
+
+## Code Reference
+
+Key source files:
+- **Data Model**: `src/features/admin/models/admin.models.ts:4-11`
+- **Service Methods**: `src/features/admin/services/admin.service.ts:14-40`
+- **UI Component**: `src/features/admin/components/admin-users.component.ts`
+- **State Management**: `src/services/state.service.ts:54-59`

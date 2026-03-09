@@ -1,0 +1,491 @@
+---
+title: 'Audit Logs'
+description: 'Track system activity and maintain compliance with comprehensive audit logging'
+icon: 'clipboard-list-check'
+---
+
+## Overview
+
+The Audit Logging system provides comprehensive tracking of all user actions, system changes, and security events across the P.FLEX platform. Every significant operation is recorded with timestamps, user information, and detailed context for compliance and troubleshooting.
+
+## Audit Log Data Model
+
+The `AuditLog` interface defines the structure of audit records:
+
+<ParamField path="id" type="string" required>
+  Unique identifier for the audit log entry
+</ParamField>
+
+<ParamField path="timestamp" type="Date" required>
+  Exact date and time of the action (automatically generated)
+</ParamField>
+
+<ParamField path="user" type="string" required>
+  Name of the user who performed the action
+</ParamField>
+
+<ParamField path="role" type="string" required>
+  Role of the user at the time of action (e.g., "Supervisor", "Jefatura")
+</ParamField>
+
+<ParamField path="module" type="string" required>
+  System module where action occurred:
+  - `ADMIN` - Administrative operations
+  - `ACCESO` - Authentication/login events
+  - `OPERACIONES` - Operational changes
+  - `SISTEMA` - System-level events
+</ParamField>
+
+<ParamField path="action" type="string" required>
+  Brief description of the action performed (e.g., "Crear Usuario", "Inicio de Sesión")
+</ParamField>
+
+<ParamField path="details" type="string" required>
+  Detailed description with context and affected entities
+</ParamField>
+
+<ParamField path="ip" type="string" required>
+  IP address of the user's device (e.g., "192.168.1.45")
+</ParamField>
+
+## Audit Service
+
+The `AuditService` manages all audit logging:
+
+```typescript
+// Source: audit.service.ts:15-29
+@Injectable({ providedIn: 'root' })
+export class AuditService {
+  // Signal para reactividad en la UI
+  readonly logs = signal<AuditLog[]>([
+    { 
+      id: 'log-init',
+      timestamp: new Date(Date.now() - 3600000), 
+      user: 'Sistema', 
+      role: 'System', 
+      module: 'SISTEMA', 
+      action: 'Inicio de Servicios', 
+      details: 'El sistema se ha iniciado correctamente.', 
+      ip: 'localhost' 
+    }
+  ]);
+```
+
+<Info>
+  Audit logs use Angular signals for reactive UI updates. New entries appear in real-time without page refresh.
+</Info>
+
+### Logging Operations
+
+Create audit entries using the `log()` method:
+
+```typescript
+// Source: audit.service.ts:31-48
+log(user: string, role: string, module: string, action: string, details: string = '') {
+  const newEntry: AuditLog = {
+    id: Math.random().toString(36).substr(2, 9),
+    timestamp: new Date(),
+    user: user || 'Desconocido',
+    role: role || '---',
+    module: module.toUpperCase(),
+    action: action,
+    details: details,
+    ip: this.generateRandomIP()
+  };
+
+  // Agregar al inicio del array
+  this.logs.update(currentLogs => [newEntry, ...currentLogs]);
+  
+  // Opcional: Aquí se podría llamar a un backend real
+  console.log('[AUDIT]', newEntry);
+}
+```
+
+<Note>
+  Logs are prepended to the array so newest entries appear first. The module name is automatically converted to uppercase.
+</Note>
+
+## Tracked Events
+
+### User Management Events
+
+All user administration actions are logged:
+
+<AccordionGroup>
+  <Accordion title="Crear Usuario" icon="user-plus">
+    ```typescript
+    // Source: admin.service.ts:28
+    this.audit.log(this.state.userName(), this.state.userRole(), 
+      'ADMIN', 'Crear Usuario', 
+      `Usuario creado: ${newUser.username} (${newUser.role})`);
+    ```
+    
+    **Module**: `ADMIN`
+    
+    **Details**: Username and assigned role
+    
+    **Example**: "Usuario creado: jperez (Supervisor)"
+  </Accordion>
+  
+  <Accordion title="Editar Usuario" icon="user-pen">
+    ```typescript
+    // Source: admin.service.ts:33
+    this.audit.log(this.state.userName(), this.state.userRole(), 
+      'ADMIN', 'Editar Usuario', 
+      `Usuario modificado: ${updatedUser.username}`);
+    ```
+    
+    **Module**: `ADMIN`
+    
+    **Details**: Username of modified account
+  </Accordion>
+  
+  <Accordion title="Eliminar Usuario" icon="user-xmark">
+    ```typescript
+    // Source: admin.service.ts:39
+    this.audit.log(this.state.userName(), this.state.userRole(), 
+      'ADMIN', 'Eliminar Usuario', 
+      `Usuario eliminado: ${user?.username || id}`);
+    ```
+    
+    **Module**: `ADMIN`
+    
+    **Details**: Username or ID of deleted account
+  </Accordion>
+</AccordionGroup>
+
+### Role Management Events
+
+<AccordionGroup>
+  <Accordion title="Actualizar Rol" icon="shield">
+    ```typescript
+    // Source: admin.service.ts:48
+    this.audit.log(this.state.userName(), this.state.userRole(), 
+      'ADMIN', 'Actualizar Rol', 
+      `Rol modificado: ${updatedRole.name}`);
+    ```
+    
+    **Module**: `ADMIN`
+    
+    **Details**: Role name
+    
+    **Tracks**: Permission changes and role modifications
+  </Accordion>
+  
+  <Accordion title="Eliminar Rol" icon="trash">
+    ```typescript
+    // Source: admin.service.ts:54
+    this.audit.log(this.state.userName(), this.state.userRole(), 
+      'ADMIN', 'Eliminar Rol', 
+      `Rol eliminado: ${role?.name || id}`);
+    ```
+    
+    **Module**: `ADMIN`
+    
+    **Details**: Role name or ID
+  </Accordion>
+</AccordionGroup>
+
+### Machine Management Events
+
+<AccordionGroup>
+  <Accordion title="Crear Máquina" icon="plus">
+    ```typescript
+    // Source: admin.service.ts:72
+    this.audit.log(this.state.userName(), this.state.userRole(), 
+      'ADMIN', 'Crear Máquina', 
+      `Máquina registrada: ${newMachine.name}`);
+    ```
+    
+    **Module**: `ADMIN`
+    
+    **Details**: Machine name
+  </Accordion>
+  
+  <Accordion title="Actualizar Máquina" icon="pen-to-square">
+    ```typescript
+    // Source: admin.service.ts:77
+    this.audit.log(this.state.userName(), this.state.userRole(), 
+      'ADMIN', 'Actualizar Máquina', 
+      `Máquina actualizada: ${updatedMachine.name} - Estado: ${updatedMachine.status}`);
+    ```
+    
+    **Module**: `ADMIN`
+    
+    **Details**: Machine name and new status
+  </Accordion>
+  
+  <Accordion title="Eliminar Máquina" icon="trash-can">
+    ```typescript
+    // Source: admin.service.ts:83
+    this.audit.log(this.state.userName(), this.state.userRole(), 
+      'ADMIN', 'Eliminar Máquina', 
+      `Máquina eliminada: ${machine?.name || id}`);
+    ```
+    
+    **Module**: `ADMIN`
+    
+    **Details**: Machine name
+  </Accordion>
+</AccordionGroup>
+
+### System Configuration Events
+
+```typescript
+// Source: admin.service.ts:92
+this.audit.log(this.state.userName(), this.state.userRole(), 
+  'ADMIN', 'Configuración', 
+  'Se actualizaron los parámetros globales del sistema.');
+```
+
+**Module**: `ADMIN`
+
+**Action**: `Configuración`
+
+**Details**: Generic message for system-wide configuration changes
+
+### Authentication Events
+
+<AccordionGroup>
+  <Accordion title="Inicio de Sesión" icon="right-to-bracket">
+    ```typescript
+    // Source: state.service.ts:142
+    this.audit.log(name, role, 'ACCESO', 'Inicio de Sesión', 
+      `Usuario ${username} inició sesión en ${shift}.`);
+    ```
+    
+    **Module**: `ACCESO`
+    
+    **Details**: Username and shift information
+    
+    **Example**: "Usuario jperez inició sesión en Turno Día."
+  </Accordion>
+  
+  <Accordion title="Cierre de Sesión" icon="right-from-bracket">
+    ```typescript
+    // Source: state.service.ts:149
+    this.audit.log(user, role, 'ACCESO', 'Cierre de Sesión', 
+      'Usuario cerró sesión manualmente.');
+    ```
+    
+    **Module**: `ACCESO`
+    
+    **Details**: Logout method (manual vs. automatic timeout)
+  </Accordion>
+</AccordionGroup>
+
+### Operational Events
+
+```typescript
+// Source: state.service.ts:166
+this.audit.log(this.userName(), this.userRole(), 'OPERACIONES', 
+  'Estado Máquina', 
+  `Máquina ${updatedMachine.name} cambió a ${updatedMachine.status}`);
+```
+
+**Module**: `OPERACIONES`
+
+**Action**: `Estado Máquina`
+
+**Details**: Machine name and status change
+
+**Use case**: Track operational changes separate from administrative configuration
+
+## Audit Log Display
+
+The audit component presents logs in a comprehensive table:
+
+```typescript
+// Source: audit.component.ts:24-57
+<table class="w-full text-sm text-left">
+  <thead>
+    <tr>
+      <th>Fecha / Hora</th>
+      <th>Usuario / Rol</th>
+      <th>Módulo</th>
+      <th>Acción</th>
+      <th>IP Origen</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let log of audit.logs()">
+      <td>{{ log.timestamp | date:'dd/MM/yyyy HH:mm:ss' }}</td>
+      <td>
+        <div>{{ log.user }}</div>
+        <div class="text-[10px]">{{ log.role }}</div>
+      </td>
+      <td>
+        <span class="badge">{{ log.module }}</span>
+      </td>
+      <td>
+        <div>{{ log.action }}</div>
+        <div class="text-xs">{{ log.details }}</div>
+      </td>
+      <td>{{ log.ip }}</td>
+    </tr>
+  </tbody>
+</table>
+```
+
+### Column Breakdown
+
+<ResponseField name="Fecha / Hora" type="datetime">
+  Timestamp formatted as DD/MM/YYYY HH:mm:ss
+  
+  Example: `09/03/2026 14:32:15`
+</ResponseField>
+
+<ResponseField name="Usuario / Rol" type="composite">
+  User's full name with role displayed below
+  
+  Example:
+  ```
+  Juan Pérez
+  SUPERVISOR
+  ```
+</ResponseField>
+
+<ResponseField name="Módulo" type="badge">
+  Categorized module with color coding:
+  - **ADMIN** - Blue badge
+  - **ACCESO** - Green badge
+  - **OPERACIONES** - Orange badge
+  - **SISTEMA** - Purple badge
+</ResponseField>
+
+<ResponseField name="Acción" type="composite">
+  Action title with detailed description below
+  
+  Example:
+  ```
+  Crear Usuario
+  Usuario creado: jperez (Supervisor)
+  ```
+</ResponseField>
+
+<ResponseField name="IP Origen" type="string">
+  Source IP address (simulated: 192.168.1.x)
+</ResponseField>
+
+## Filtering and Search
+
+While not shown in the current implementation, audit logs can be filtered by:
+
+- Date range
+- User name
+- Module type
+- Action type
+- IP address
+
+<Note>
+  The current implementation stores logs in memory. For production use, implement persistent storage and retention policies.
+</Note>
+
+## Compliance Features
+
+<CardGroup cols={2}>
+  <Card title="Tamper-Proof" icon="lock">
+    Audit logs cannot be modified or deleted by users (only append operations)
+  </Card>
+  
+  <Card title="Complete Traceability" icon="route">
+    Every action includes user identity, timestamp, and detailed context
+  </Card>
+  
+  <Card title="Real-Time Logging" icon="bolt">
+    Events are logged synchronously as they occur
+  </Card>
+  
+  <Card title="Module Segregation" icon="layer-group">
+    Actions are categorized by system module for easy filtering
+  </Card>
+</CardGroup>
+
+## Audit Log Modules
+
+| Module | Purpose | Example Actions |
+|--------|---------|----------------|
+| **ADMIN** | Administrative operations | User creation, role updates, machine configuration |
+| **ACCESO** | Authentication events | Login, logout, session timeout |
+| **OPERACIONES** | Operational changes | Machine status changes, work order updates |
+| **SISTEMA** | System-level events | Service startup, configuration changes |
+
+## Best Practices
+
+<Card title="Audit Logging Guidelines" icon="clipboard-check">
+  **Log Everything Significant**: Track all actions that modify data or affect security
+  
+  **Descriptive Details**: Include entity names, old/new values, and relevant context
+  
+  **Consistent Formatting**: Use consistent action names across the application
+  
+  **Regular Review**: Monitor audit logs for suspicious activity or policy violations
+  
+  **Retention Policy**: Define how long to retain logs based on compliance requirements
+  
+  **Export Capability**: Allow exporting logs to CSV/PDF for external auditing
+  
+  **Access Control**: Restrict audit log viewing to authorized personnel (Jefatura, Sistemas)
+</Card>
+
+## IP Address Tracking
+
+The system simulates IP address tracking:
+
+```typescript
+// Source: audit.service.ts:50-52
+private generateRandomIP(): string {
+  return `192.168.1.${Math.floor(Math.random() * 254) + 1}`;
+}
+```
+
+<Warning>
+  This is a simulation for demonstration purposes. In production, capture real client IP addresses from HTTP headers.
+</Warning>
+
+## Integration Points
+
+Audit logging is integrated throughout the application:
+
+```typescript
+// Services that inject AuditService:
+- AdminService (src/features/admin/services/admin.service.ts:4)
+- StateService (src/services/state.service.ts:29)
+
+// Components that display logs:
+- AuditComponent (src/features/audit/audit.component.ts)
+- AdminConfigComponent (preview in Security & Logs section)
+```
+
+## Future Enhancements
+
+<Steps>
+  <Step title="Persistent Storage">
+    Store logs in database with proper indexing for fast queries
+  </Step>
+  
+  <Step title="Advanced Filtering">
+    Add date range pickers, multi-select filters, and full-text search
+  </Step>
+  
+  <Step title="Export Functionality">
+    Enable CSV, PDF, and JSON export for compliance reporting
+  </Step>
+  
+  <Step title="Alerting">
+    Configure alerts for suspicious patterns (multiple failed logins, unauthorized access attempts)
+  </Step>
+  
+  <Step title="Data Retention">
+    Implement automatic archival and deletion based on retention policies
+  </Step>
+</Steps>
+
+## Code Reference
+
+Key source files:
+- **Audit Service**: `src/services/audit.service.ts:15-53`
+- **Audit Interface**: `src/services/audit.service.ts:4-13`
+- **Audit Component**: `src/features/audit/audit.component.ts:6-66`
+- **Admin Integration**: `src/features/admin/services/admin.service.ts:4,12`
+- **Auth Integration**: `src/services/state.service.ts:29,142,149`

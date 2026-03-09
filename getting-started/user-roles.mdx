@@ -1,0 +1,492 @@
+---
+title: User Roles & Permissions
+description: Understand the different user roles and their access levels in P.FLEX
+icon: "users"
+---
+
+## Role Hierarchy
+
+P.FLEX implements a comprehensive role-based access control (RBAC) system with six distinct user roles:
+
+```typescript
+// From admin.models.ts:2
+export type UserRole = 'Jefatura' | 'Supervisor' | 'Asistente' | 'Operario' | 'Encargado' | 'Sistemas';
+```
+
+<CardGroup cols={3}>
+  <Card title="Sistemas" icon="shield" color="#e11d48">
+    **System Administrator**
+    
+    Full system access
+  </Card>
+  <Card title="Jefatura" icon="user-tie" color="#7c3aed">
+    **Management**
+    
+    Strategic oversight
+  </Card>
+  <Card title="Supervisor" icon="clipboard-user" color="#2563eb">
+    **Supervisor**
+    
+    Production management
+  </Card>
+  <Card title="Asistente" icon="user-pen" color="#0891b2">
+    **Assistant**
+    
+    Support tasks
+  </Card>
+  <Card title="Operario" icon="user-gear" color="#16a34a">
+    **Operator**
+    
+    Production floor
+  </Card>
+  <Card title="Encargado" icon="user-check" color="#ea580c">
+    **Supervisor**
+    
+    Area management
+  </Card>
+</CardGroup>
+
+## Role Definitions
+
+### 1. Sistemas (System Administrator)
+
+<Card title="Admin Total" icon="shield-halved" color="#e11d48">
+  **Full System Access**
+  
+  Complete control over all system functions, configurations, and user management.
+</Card>
+
+```typescript
+// From state.service.ts:61-66
+readonly adminRoles = signal<RoleDefinition[]>([
+  {
+    id: 'r4',
+    name: 'Sistemas',
+    description: 'Configuración técnica.',
+    permissions: ['Admin Total']
+  }
+]);
+```
+
+#### Permissions
+
+<AccordionGroup>
+  <Accordion title="User Management" icon="users">
+    - Create, edit, and deactivate user accounts
+    - Assign roles and permissions
+    - Reset passwords
+    - View user activity logs
+    
+    ```typescript
+    // User structure from admin.models.ts:4-11
+    interface AppUser {
+      id: string;
+      name: string;
+      username: string;
+      role: UserRole;
+      active: boolean;
+      assignedAreas?: string[];
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="System Configuration" icon="gear">
+    - Configure shift times and names
+    - Set password policies
+    - Configure auto-logout timeouts
+    - Manage plant settings
+    
+    ```typescript
+    // From state.service.ts:32-42
+    readonly config = signal<SystemConfig>({
+      shiftName1: 'Turno Día',
+      shiftTime1: '06:00',
+      shiftName2: 'Turno Noche',
+      shiftTime2: '18:00',
+      passwordExpiryWarningDays: 15,
+      passwordPolicyDays: 90,
+      plantName: 'Planta Central - Zona Industrial',
+      autoLogoutMinutes: 30,
+      operatorMessage: 'Recordar verificar el estado de los clichés...'
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="Machine Administration" icon="industry">
+    - Add, edit, and deactivate machines
+    - Assign machines to production areas
+    - Update machine status
+    - Configure machine types
+  </Accordion>
+  
+  <Accordion title="Audit & Security" icon="shield">
+    - Access all audit logs
+    - Review security events
+    - Monitor system health
+    - Configure backup settings
+  </Accordion>
+</AccordionGroup>
+
+#### Access Areas
+
+✅ All modules and features
+✅ Admin configuration panel
+✅ User and role management
+✅ System settings and security
+✅ Complete audit trail access
+
+---
+
+### 2. Jefatura (Management)
+
+<Card title="Executive Oversight" icon="chart-line" color="#7c3aed">
+  **Strategic Management**
+  
+  Access to reports, KPIs, and approval workflows for high-level decision making.
+</Card>
+
+```typescript
+// From state.service.ts:61-66
+{
+  id: 'r1',
+  name: 'Jefatura',
+  description: 'Acceso total a reportes, KPIs y aprobación.',
+  permissions: ['Ver Dashboard', 'Aprobar OTs', 'Reportes', 'Gestión Usuarios']
+}
+```
+
+#### Permissions
+
+<CardGroup cols={2}>
+  <Card title="Ver Dashboard" icon="gauge">
+    Full access to production KPIs and analytics
+  </Card>
+  <Card title="Aprobar OTs" icon="check">
+    Review and approve work orders
+  </Card>
+  <Card title="Reportes" icon="file-chart-column">
+    Generate and export all reports
+  </Card>
+  <Card title="Gestión Usuarios" icon="users">
+    Limited user management capabilities
+  </Card>
+</CardGroup>
+
+#### Access Areas
+
+✅ Dashboard with full KPIs
+✅ OT list and approval
+✅ Production schedule
+✅ All reports (Print, Diecut, Rewind, Packaging)
+✅ Inventory overview
+✅ Incidents and quality reports
+✅ Analytics and indicators
+✅ Audit trail (read-only)
+
+---
+
+### 3. Supervisor
+
+<Card title="Production Management" icon="clipboard-check" color="#2563eb">
+  **Shift & Production Control**
+  
+  Manage daily operations, assign tasks, and ensure quality standards.
+</Card>
+
+```typescript
+// From state.service.ts:61-66  
+{
+  id: 'r2',
+  name: 'Supervisor',
+  description: 'Gestión de turno y asignación.',
+  permissions: ['Asignar Tareas', 'Cerrar Turno', 'Validar Calidad', 'Ver OTs']
+}
+```
+
+#### Permissions
+
+<CardGroup cols={2}>
+  <Card title="Asignar Tareas" icon="list-check">
+    Assign work orders to operators and machines
+  </Card>
+  <Card title="Cerrar Turno" icon="clock">
+    Complete shift reports and handovers
+  </Card>
+  <Card title="Validar Calidad" icon="badge-check">
+    Review and validate quality checks
+  </Card>
+  <Card title="Ver OTs" icon="eye">
+    View all work orders and production status
+  </Card>
+</CardGroup>
+
+#### Access Areas
+
+✅ Dashboard (production metrics)
+✅ OT list (view and assign)
+✅ Production schedule
+✅ Reports (department-specific)
+✅ Inventory (view and update)
+✅ Incidents (create and manage)
+✅ Quality validation
+
+---
+
+### 4. Operario (Operator)
+
+<Card title="Production Floor" icon="industry" color="#16a34a">
+  **Machine Operation**
+  
+  Register production data and operate assigned workstations.
+</Card>
+
+```typescript
+// From state.service.ts:61-66
+{
+  id: 'r3',
+  name: 'Operario',
+  description: 'Registro de producción.',
+  permissions: ['Registrar Producción', 'Ver OTs']
+}
+```
+
+#### Permissions
+
+<CardGroup cols={2}>
+  <Card title="Registrar Producción" icon="pen-to-square">
+    Create production reports for assigned machines
+  </Card>
+  <Card title="Ver OTs" icon="eye">
+    View work orders assigned to them
+  </Card>
+</CardGroup>
+
+#### Access Areas
+
+✅ Operator station selector
+✅ Machine-specific production forms
+✅ View assigned OTs
+✅ Report incidents
+✅ View shift information
+
+#### Operator Workflow
+
+<Steps>
+  <Step title="Select Workstation">
+    After login, choose from 4 stations:
+    
+    ```typescript
+    // From mode-selector.component.ts:290-296
+    navigateTo(type: string) {
+      if (type === 'packaging') {
+        this.router.navigate(['/operator/packaging']);
+      } else {
+        this.router.navigate(['/operator/select-machine', type]);
+      }
+    }
+    ```
+    
+    - **Impresión** (ST-01) - Printing station
+    - **Troquelado** (ST-02) - Die-cutting station
+    - **Rebobinado** (ST-03) - Rewinding station
+    - **Empaquetado** (ST-04) - Packaging station
+  </Step>
+  
+  <Step title="Choose Machine">
+    Select the specific machine from your station type
+  </Step>
+  
+  <Step title="Register Production">
+    Fill out production report with:
+    - OT number
+    - Start/end times
+    - Production quantities
+    - Quality checks
+    - Issues/incidents
+  </Step>
+  
+  <Step title="Submit Report">
+    Data is saved locally and synced to server
+  </Step>
+</Steps>
+
+---
+
+### 5. Asistente & Encargado
+
+<Info>
+  These roles are customizable by administrators and typically fall between Supervisor and Operario permissions.
+</Info>
+
+## Permission Matrix
+
+| Feature | Sistemas | Jefatura | Supervisor | Operario |
+|---------|----------|----------|------------|----------|
+| **Dashboard** | ✅ Full | ✅ Full | ✅ Limited | ❌ No |
+| **View OTs** | ✅ | ✅ | ✅ | ✅ (assigned) |
+| **Approve OTs** | ✅ | ✅ | ❌ | ❌ |
+| **Create Reports** | ✅ | ✅ | ✅ | ✅ (own) |
+| **View All Reports** | ✅ | ✅ | ✅ | ❌ |
+| **Schedule** | ✅ | ✅ | ✅ View | ❌ |
+| **Inventory** | ✅ Full | ✅ View | ✅ Update | ❌ |
+| **Incidents** | ✅ | ✅ | ✅ | ✅ Create |
+| **Analytics** | ✅ | ✅ | ✅ Limited | ❌ |
+| **Audit Logs** | ✅ Full | ✅ View | ❌ | ❌ |
+| **User Management** | ✅ Full | ✅ Limited | ❌ | ❌ |
+| **System Config** | ✅ | ❌ | ❌ | ❌ |
+| **Machine Admin** | ✅ | ❌ | ❌ | ❌ |
+
+## Viewing Your Role
+
+Your current role is always visible in the application:
+
+### Sidebar Profile
+
+```typescript
+// From sidebar.component.ts:60-78
+<div class="flex items-center gap-3">
+  <div class="h-10 w-10 rounded-lg bg-gradient-to-tr flex items-center justify-center">
+    <span class="text-sm">{{ getInitials(state.userName()) }}</span>
+  </div>
+  <div class="flex flex-col">
+    <span class="text-sm font-semibold">{{ state.userName() }}</span>
+    <div class="flex items-center gap-1.5">
+      <div class="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
+      <span class="text-[10px]">{{ state.currentShift() || 'Sin Turno' }}</span>
+    </div>
+  </div>
+</div>
+```
+
+### Header Display
+
+```typescript
+// From mode-selector.component.ts:34-38
+<div class="flex items-center gap-3">
+  <span>{{ state.currentShift() || 'TURNO GENERAL' }}</span>
+  <span class="text-gray-600">|</span>
+  <span class="text-blue-400">ID: {{ state.userName() }}</span>
+</div>
+```
+
+## Role Assignment
+
+<Note>
+  Only **Sistemas** and **Jefatura** roles can assign or modify user roles.
+</Note>
+
+### How Roles Are Assigned
+
+<Steps>
+  <Step title="Admin Creates User">
+    Navigate to **Admin** → **Users** → **Add User**
+    
+    ```typescript
+    // From state.service.ts:54-59
+    readonly adminUsers = signal<AppUser[]>([
+      { id: '1', name: 'Juan Perez', username: 'jperez', role: 'Supervisor', active: true },
+      { id: '2', name: 'Maria Garcia', username: 'mgarcia', role: 'Jefatura', active: true },
+      { id: '3', name: 'Pedro Operador', username: 'poperador', role: 'Operario', active: true },
+      { id: '4', name: 'Carlos Admin', username: 'admin', role: 'Sistemas', active: true },
+    ]);
+    ```
+  </Step>
+  
+  <Step title="Select Role">
+    Choose from available roles:
+    - Sistemas
+    - Jefatura
+    - Supervisor
+    - Operario
+    - Asistente
+    - Encargado
+  </Step>
+  
+  <Step title="Optional: Assign Areas">
+    For Supervisors and Operarios, assign specific production areas:
+    - Nave A (Printing)
+    - Nave B (Printing)
+    - Nave C (Die-cutting)
+    - Nave D (Finishing)
+  </Step>
+  
+  <Step title="Activate User">
+    Enable the user account and provide credentials to the employee
+  </Step>
+</Steps>
+
+## Security & Audit
+
+All role-based actions are logged:
+
+```typescript
+// From state.service.ts:142
+this.audit.log(name, role, 'ACCESO', 'Inicio de Sesión', 
+  `Usuario ${username} inició sesión en ${shift}.`);
+```
+
+### Audit Trail Includes:
+
+<CardGroup cols={2}>
+  <Card title="Login Events" icon="right-to-bracket">
+    - User authentication
+    - Shift selection
+    - Failed login attempts
+  </Card>
+  <Card title="Data Changes" icon="pen">
+    - Production reports
+    - OT modifications
+    - Inventory updates
+  </Card>
+  <Card title="Permission Usage" icon="key">
+    - Approval actions
+    - Configuration changes
+    - User management
+  </Card>
+  <Card title="System Events" icon="server">
+    - Machine status changes
+    - Offline/online transitions
+    - Sync operations
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<Steps>
+  <Step title="Principle of Least Privilege">
+    Users should only have the minimum permissions needed for their job function.
+  </Step>
+  
+  <Step title="Regular Reviews">
+    Administrators should review user roles quarterly and adjust as needed.
+  </Step>
+  
+  <Step title="Separation of Duties">
+    Critical operations (approvals, audits) should require multiple roles.
+  </Step>
+  
+  <Step title="No Shared Accounts">
+    Each person must have their own credentials for accountability.
+    
+    <Warning>
+      Sharing login credentials violates security policy and compromises audit integrity.
+    </Warning>
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Navigation Guide" icon="compass" href="/getting-started/navigation">
+    Learn how to navigate based on your role
+  </Card>
+  <Card title="Operator Guide" icon="industry" href="/operator/overview">
+    Production floor workflows
+  </Card>
+  <Card title="Dashboard Guide" icon="chart-line" href="/dashboard/overview">
+    Management interface overview
+  </Card>
+  <Card title="Admin Panel" icon="shield" href="/admin/overview">
+    System administration guide
+  </Card>
+</CardGroup>

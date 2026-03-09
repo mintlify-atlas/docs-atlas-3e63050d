@@ -1,0 +1,342 @@
+---
+title: "Incident Management & CAPA"
+description: "Report, track, and resolve quality and safety incidents with corrective and preventive actions"
+---
+
+## Overview
+
+The Incident Management system enables comprehensive tracking of quality, safety, machinery, and material incidents throughout the production floor. Integrated CAPA (Corrective and Preventive Action) workflows ensure structured root cause analysis and resolution.
+
+<Note>
+  All incidents are logged with full audit trails and can be linked to specific work orders (OTs) and machines for traceability.
+</Note>
+
+## Incident Types
+
+The system supports five incident categories:
+
+<CardGroup cols={2}>
+  <Card title="Maquinaria" icon="settings">
+    Equipment breakdowns, unplanned stops, mechanical failures
+  </Card>
+  <Card title="Calidad" icon="search">
+    Quality defects, non-conformances, inspection failures
+  </Card>
+  <Card title="Seguridad" icon="health-and-safety">
+    Safety violations, near-misses, workplace hazards
+  </Card>
+  <Card title="Material" icon="inventory-2">
+    Material discrepancies, inventory variances, supply issues
+  </Card>
+</CardGroup>
+
+## Incident Data Model
+
+From `quality.models.ts:15-30`:
+
+```typescript
+export interface Incident {
+  id: string;
+  code: string;              // Auto-generated: INC-2024-089
+  title: string;
+  description: string;
+  priority: IncidentPriority; // 'Alta' | 'Media' | 'Baja'
+  type: IncidentType;
+  status: IncidentStatus;     // 'Abierta' | 'En Análisis' | 'Acción Correctiva' | 'Cerrada'
+  otRef?: string;            // Linked work order
+  machineRef?: string;       // Linked machine
+  reportedBy: string;
+  reportedAt: Date;
+  assignedTo: string;        // Department/team
+  rootCause?: string;        // RCA documentation
+  actions: CapaAction[];     // CAPA actions
+}
+```
+
+## Incident Workflow
+
+### Status Progression
+
+<Steps>
+  <Step title="Abierta (Open)">
+    Incident reported and awaiting assignment or initial analysis
+  </Step>
+  <Step title="En Análisis (Under Analysis)">
+    Root cause analysis in progress
+  </Step>
+  <Step title="Acción Correctiva (Corrective Action)">
+    CAPA actions defined and being executed
+  </Step>
+  <Step title="Cerrada (Closed)">
+    All actions completed and incident resolved
+  </Step>
+</Steps>
+
+### Priority Levels
+
+<Tabs>
+  <Tab title="Alta (High)">
+    **Critical Impact**
+    - Production line stoppage
+    - Safety hazards
+    - Major quality defects
+    - Immediate escalation required
+    
+    Example from code:
+    ```typescript
+    {
+      code: 'INC-2024-089',
+      title: 'Parada no programada en Flexo 03',
+      priority: 'Alta',
+      type: 'Maquinaria',
+      rootCause: 'Fatiga de material por falta de lubricación'
+    }
+    ```
+  </Tab>
+  <Tab title="Media (Medium)">
+    **Moderate Impact**
+    - Minor quality issues
+    - Inventory discrepancies
+    - Process inefficiencies
+    
+    Example:
+    ```typescript
+    {
+      code: 'INC-2024-090',
+      title: 'Diferencia de inventario Tinta Magenta',
+      priority: 'Media',
+      type: 'Material',
+      description: 'Faltante de 2kg vs sistema'
+    }
+    ```
+  </Tab>
+  <Tab title="Baja (Low)">
+    **Minor Impact**
+    - Documentation errors
+    - Housekeeping issues
+    - Non-urgent improvements
+  </Tab>
+</Tabs>
+
+## CAPA Actions
+
+### Action Types
+
+From `quality.models.ts:6-13`:
+
+```typescript
+export interface CapaAction {
+  id: string;
+  description: string;
+  type: 'Correctiva' | 'Preventiva';
+  responsible: string;
+  deadline: string;
+  completed: boolean;
+}
+```
+
+<CardGroup cols={2}>
+  <Card title="Correctiva (Corrective)" icon="build" color="#f59e0b">
+    Immediate actions to fix the problem
+    - Equipment repairs
+    - Part replacements
+    - Emergency adjustments
+  </Card>
+  <Card title="Preventiva (Preventive)" icon="shield" color="#3b82f6">
+    Long-term actions to prevent recurrence
+    - Process improvements
+    - Training programs
+    - Preventive maintenance schedules
+  </Card>
+</CardGroup>
+
+### Example CAPA Workflow
+
+From `quality.service.ts:27-30`:
+
+```typescript
+actions: [
+  {
+    id: 'a1',
+    description: 'Reemplazo de engranaje',
+    type: 'Correctiva',
+    responsible: 'J. Mantenimiento',
+    deadline: '2024-10-26',
+    completed: true
+  },
+  {
+    id: 'a2',
+    description: 'Revisar plan de lubricación diario',
+    type: 'Preventiva',
+    responsible: 'Gerente Planta',
+    deadline: '2024-10-30',
+    completed: false
+  }
+]
+```
+
+## Service Methods
+
+### Creating Incidents
+
+From `quality.service.ts:55-74`:
+
+```typescript
+addIncident(incident: Partial<Incident>) {
+  const newIncident: Incident = {
+    id: Math.random().toString(36).substr(2, 9),
+    code: `INC-2024-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+    title: incident.title || 'Sin Título',
+    priority: incident.priority || 'Media',
+    type: incident.type || 'Otro',
+    status: 'Abierta',
+    reportedBy: incident.reportedBy || 'Usuario Actual',
+    reportedAt: new Date(),
+    assignedTo: incident.assignedTo || 'Sin Asignar',
+    actions: []
+  };
+  
+  this._incidents.next([newIncident, ...this.incidents]);
+  this.audit.log(userName, userRole, 'CALIDAD', 'Reportar Incidencia', 
+                 `Nueva incidencia ${newIncident.code}: ${newIncident.title}`);
+}
+```
+
+### Adding CAPA Actions
+
+From `quality.service.ts:82-100`:
+
+```typescript
+addCapaAction(incidentId: string, action: Partial<CapaAction>) {
+  const newAction: CapaAction = {
+    id: Math.random().toString(36).substr(2, 9),
+    description: action.description || '',
+    type: action.type || 'Correctiva',
+    responsible: action.responsible || '',
+    deadline: action.deadline || new Date().toISOString().split('T')[0],
+    completed: false
+  };
+  
+  // Auto-advance status to 'Acción Correctiva'
+  const newStatus = incident.status === 'Abierta' ? 'Acción Correctiva' : incident.status;
+  
+  this.audit.log(userName, userRole, 'CALIDAD', 'Agregar Acción CAPA',
+                 `Acción ${newAction.type} agregada a ${incident.code}`);
+}
+```
+
+### Closing Incidents
+
+From `quality.service.ts:113-117`:
+
+```typescript
+closeIncident(incidentId: string) {
+  const incident = this.incidents.find(i => i.id === incidentId);
+  this._incidents.next(
+    this.incidents.map(i => i.id === incidentId ? { ...i, status: 'Cerrada' } : i)
+  );
+  this.audit.log(userName, userRole, 'CALIDAD', 'Cerrar Incidencia',
+                 `Incidencia ${incident?.code} marcada como resuelta.`);
+}
+```
+
+## Department Assignments
+
+Incidents can be assigned to the following departments:
+
+- **Mantenimiento** - Equipment and machinery issues
+- **Calidad** - Quality control and inspection
+- **Producción** - Process and production issues
+- **Almacén** - Inventory and material management
+- **Seguridad** - Safety and compliance
+
+## Validation Rules
+
+From `incidents.component.ts:390-449`:
+
+### Before Creating Incident
+```typescript
+if (!this.newIncidentData.title || !this.newIncidentData.description) {
+  alert('Complete el título y la descripción.');
+  return;
+}
+```
+
+### Before Closing Incident
+```typescript
+// Check for pending actions
+const pendingActions = incident?.actions.some(a => !a.completed);
+if (pendingActions) {
+  if (!confirm('Hay acciones pendientes. ¿Desea cerrar de todos modos?')) return;
+}
+
+// Require root cause analysis
+if (!incident?.rootCause) {
+  alert('Debe ingresar un Análisis de Causa Raíz antes de cerrar.');
+  return;
+}
+```
+
+## Filtering and Views
+
+### Active vs Closed
+
+From `quality.service.ts:52-53`:
+
+```typescript
+get activeIncidents() { 
+  return this.incidents.filter(i => i.status !== 'Cerrada'); 
+}
+
+get closedIncidents() { 
+  return this.incidents.filter(i => i.status === 'Cerrada'); 
+}
+```
+
+## Integration Points
+
+<CardGroup cols={2}>
+  <Card title="Work Orders" icon="receipt">
+    Link incidents to specific OTs via `otRef` field for production traceability
+  </Card>
+  <Card title="Machines" icon="precision-manufacturing">
+    Reference specific equipment via `machineRef` for maintenance tracking
+  </Card>
+  <Card title="Audit Log" icon="history">
+    All incident actions logged via `AuditService` with user, role, and timestamp
+  </Card>
+  <Card title="State Management" icon="database">
+    Incidents stored in `StateService` for persistence across sessions
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Root Cause Analysis">
+    Always document the root cause before closing an incident. Use the 5 Whys method or fishbone diagrams to identify systemic issues rather than symptoms.
+  </Accordion>
+  
+  <Accordion title="CAPA Balance">
+    Include both Correctiva (immediate fix) and Preventiva (long-term solution) actions for high-priority incidents to prevent recurrence.
+  </Accordion>
+  
+  <Accordion title="Timely Assignment">
+    Assign incidents to the appropriate department immediately upon creation to ensure rapid response and accountability.
+  </Accordion>
+  
+  <Accordion title="OT Linkage">
+    Always link incidents to work orders when applicable to enable production impact analysis and quality trend reporting.
+  </Accordion>
+</AccordionGroup>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Quality Tracking" href="/quality/tracking" icon="analytics">
+    Monitor tooling status and production quality metrics
+  </Card>
+  <Card title="Audit Logs" href="/administration/audit" icon="history">
+    Review full incident history and compliance trails
+  </Card>
+</CardGroup>

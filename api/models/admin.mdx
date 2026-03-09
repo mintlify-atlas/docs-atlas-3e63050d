@@ -1,0 +1,293 @@
+---
+title: Admin Data Models
+description: TypeScript interfaces for user management, roles, machines, and system configuration
+icon: user-shield
+---
+
+## AppUser
+
+Represents a user account in the P.FLEX system.
+
+<ResponseField name="id" type="string" required>
+  Unique user identifier
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Full name of the user
+</ResponseField>
+
+<ResponseField name="username" type="string" required>
+  Login username (unique)
+</ResponseField>
+
+<ResponseField name="role" type="UserRole" required>
+  User role (determines permissions)
+  
+  Available roles:
+  - `Jefatura` - Management level with full access
+  - `Supervisor` - Shift and task management
+  - `Asistente` - Assistant role
+  - `Operario` - Production operator
+  - `Encargado` - Department manager
+  - `Sistemas` - System administrator
+</ResponseField>
+
+<ResponseField name="active" type="boolean" required>
+  Whether the user account is active
+</ResponseField>
+
+<ResponseField name="assignedAreas" type="string[]">
+  Array of areas/departments assigned to the user
+</ResponseField>
+
+---
+
+## UserRole
+
+Type definition for available user roles.
+
+```typescript
+type UserRole = 'Jefatura' | 'Supervisor' | 'Asistente' | 'Operario' | 'Encargado' | 'Sistemas';
+```
+
+<ParamField path="Jefatura" type="string">
+  Management role with full system access including reports, KPIs, and approvals
+</ParamField>
+
+<ParamField path="Supervisor" type="string">
+  Shift management role with task assignment and quality validation
+</ParamField>
+
+<ParamField path="Asistente" type="string">
+  Assistant role with limited administrative access
+</ParamField>
+
+<ParamField path="Operario" type="string">
+  Production operator with production registration access
+</ParamField>
+
+<ParamField path="Encargado" type="string">
+  Department manager with area-specific permissions
+</ParamField>
+
+<ParamField path="Sistemas" type="string">
+  System administrator with full technical configuration access
+</ParamField>
+
+---
+
+## RoleDefinition
+
+Defines a role with its associated permissions.
+
+<ResponseField name="id" type="string" required>
+  Unique role identifier
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Role name (should match UserRole values)
+</ResponseField>
+
+<ResponseField name="description" type="string" required>
+  Human-readable description of the role
+</ResponseField>
+
+<ResponseField name="permissions" type="string[]" required>
+  Array of permission strings granted to this role
+  
+  Common permissions:
+  - `Ver Dashboard` - View dashboard
+  - `Aprobar OTs` - Approve work orders
+  - `Reportes` - Access reports
+  - `Gestión Usuarios` - User management
+  - `Asignar Tareas` - Assign tasks
+  - `Cerrar Turno` - Close shift
+  - `Validar Calidad` - Validate quality
+  - `Ver OTs` - View work orders
+  - `Registrar Producción` - Register production
+  - `Admin Total` - Full admin access
+</ResponseField>
+
+---
+
+## Machine
+
+Represents a production machine in the plant.
+
+<ResponseField name="id" type="string" required>
+  Unique machine identifier
+</ResponseField>
+
+<ResponseField name="code" type="string" required>
+  Machine code (e.g., IMP-01, TRQ-05, RBB-03)
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Machine name
+</ResponseField>
+
+<ResponseField name="type" type="string" required>
+  Machine type/category
+  
+  Common types:
+  - `Impresión` - Printing machines
+  - `Troquelado` - Die-cutting machines
+  - `Acabado` - Finishing machines (rewinders, blisters, etc.)
+</ResponseField>
+
+<ResponseField name="area" type="string" required>
+  Physical area/location in the plant (e.g., Nave A, Nave B, Nave C, Nave D)
+</ResponseField>
+
+<ResponseField name="status" type="'Operativa' | 'Mantenimiento' | 'Detenida' | 'Sin Operador'" required>
+  Current operational status
+  
+  - `Operativa` - Operational and running
+  - `Mantenimiento` - Under maintenance
+  - `Detenida` - Stopped/halted
+  - `Sin Operador` - No operator assigned
+</ResponseField>
+
+<ResponseField name="active" type="boolean" required>
+  Whether the machine is active in the system
+</ResponseField>
+
+---
+
+## SystemConfig
+
+Global system configuration settings.
+
+<ResponseField name="shiftName1" type="string" required>
+  Name of the first shift (e.g., "Turno Día")
+</ResponseField>
+
+<ResponseField name="shiftTime1" type="string" required>
+  Start time of the first shift (24-hour format, e.g., "06:00")
+</ResponseField>
+
+<ResponseField name="shiftName2" type="string" required>
+  Name of the second shift (e.g., "Turno Noche")
+</ResponseField>
+
+<ResponseField name="shiftTime2" type="string" required>
+  Start time of the second shift (24-hour format, e.g., "18:00")
+</ResponseField>
+
+<ResponseField name="passwordExpiryWarningDays" type="number" required>
+  Number of days before password expiry to show warning
+</ResponseField>
+
+<ResponseField name="passwordPolicyDays" type="number" required>
+  Number of days until password must be changed
+</ResponseField>
+
+<ResponseField name="plantName" type="string" required>
+  Name of the production plant
+</ResponseField>
+
+<ResponseField name="autoLogoutMinutes" type="number" required>
+  Minutes of inactivity before automatic logout
+</ResponseField>
+
+<ResponseField name="operatorMessage" type="string" required>
+  Message displayed to operators (shift instructions, reminders, etc.)
+</ResponseField>
+
+---
+
+## AuditLog
+
+System audit log entry for tracking user actions.
+
+<ResponseField name="id" type="string" required>
+  Unique log entry identifier
+</ResponseField>
+
+<ResponseField name="timestamp" type="Date" required>
+  Date and time of the action
+</ResponseField>
+
+<ResponseField name="user" type="string" required>
+  User who performed the action
+</ResponseField>
+
+<ResponseField name="role" type="string" required>
+  Role of the user at the time of action
+</ResponseField>
+
+<ResponseField name="module" type="string" required>
+  System module where action occurred (e.g., SISTEMA, ACCESO, OPERACIONES, CALIDAD)
+</ResponseField>
+
+<ResponseField name="action" type="string" required>
+  Type of action performed (e.g., Inicio de Sesión, Cierre de Sesión, Estado Máquina)
+</ResponseField>
+
+<ResponseField name="details" type="string" required>
+  Detailed description of the action
+</ResponseField>
+
+<ResponseField name="ip" type="string" required>
+  IP address of the client
+</ResponseField>
+
+## Usage Example
+
+```typescript
+import { AppUser, RoleDefinition, Machine, SystemConfig, AuditLog } from './models/admin.models';
+
+const user: AppUser = {
+  id: 'u-12345',
+  name: 'Juan Pérez',
+  username: 'jperez',
+  role: 'Supervisor',
+  active: true,
+  assignedAreas: ['Nave A', 'Nave B']
+};
+
+const role: RoleDefinition = {
+  id: 'r-supervisor',
+  name: 'Supervisor',
+  description: 'Gestión de turno y asignación de tareas',
+  permissions: [
+    'Asignar Tareas',
+    'Cerrar Turno',
+    'Validar Calidad',
+    'Ver OTs'
+  ]
+};
+
+const machine: Machine = {
+  id: 'p1',
+  code: 'IMP-01',
+  name: 'SUPERPRINT 1',
+  type: 'Impresión',
+  area: 'Nave A',
+  status: 'Operativa',
+  active: true
+};
+
+const config: SystemConfig = {
+  shiftName1: 'Turno Día',
+  shiftTime1: '06:00',
+  shiftName2: 'Turno Noche',
+  shiftTime2: '18:00',
+  passwordExpiryWarningDays: 15,
+  passwordPolicyDays: 90,
+  plantName: 'Planta Central - Zona Industrial',
+  autoLogoutMinutes: 30,
+  operatorMessage: 'Recordar verificar el estado de los clichés al finalizar el turno.'
+};
+
+const auditLog: AuditLog = {
+  id: 'log-67890',
+  timestamp: new Date(),
+  user: 'Juan Pérez',
+  role: 'Supervisor',
+  module: 'ACCESO',
+  action: 'Inicio de Sesión',
+  details: 'Usuario jperez inició sesión en Turno Día',
+  ip: '192.168.1.105'
+};
+```

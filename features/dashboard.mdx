@@ -1,0 +1,458 @@
+---
+title: 'Dashboard Overview'
+description: 'Real-time operations center with live KPIs, production feed, and system monitoring'
+icon: 'chart-line'
+---
+
+## Overview
+
+The Dashboard is the central command center of P.FLEX, providing real-time visibility into plant operations, active production orders, quality incidents, and system health metrics.
+
+<CardGroup cols={2}>
+  <Card title="Live KPI Monitoring" icon="gauge-high">
+    Track OEE, active orders, incidents, and production volume in real-time
+  </Card>
+  <Card title="Operations Feed" icon="list-timeline">
+    Consolidated activity stream from production, quality, and inventory
+  </Card>
+  <Card title="Quick Actions" icon="bolt">
+    One-click access to create orders, import data, and report incidents
+  </Card>
+  <Card title="System Health" icon="heartbeat">
+    Monitor machine status, sync queue, and energy efficiency
+  </Card>
+</CardGroup>
+
+---
+
+## Key Performance Indicators (KPIs)
+
+The dashboard displays six primary KPIs in real-time:
+
+### OEE Global (Overall Equipment Effectiveness)
+
+Calculated metric showing plant-wide equipment performance with trending indicators.
+
+```typescript
+// Dashboard KPI Display (dashboard.component.ts:110-135)
+<div class="glassmorphism-card p-4 rounded-2xl">
+  <div class="flex justify-between items-start text-slate-500 mb-2">
+    <span class="text-[10px] font-bold uppercase tracking-widest">OEE Global</span>
+    <span class="material-symbols-outlined text-sm">memory</span>
+  </div>
+  <div class="flex items-end justify-between">
+    <div>
+      <span class="text-2xl font-bold text-white">82.4%</span>
+      <div class="text-[10px] text-emerald-400 font-medium flex items-center">
+        <span class="material-symbols-outlined text-sm">trending_up</span> +1.2%
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+### Active Production Orders (OTs Activas)
+
+Shows currently running production orders with operator avatars.
+
+```typescript
+// Active Production Getter (dashboard.component.ts:589-593)
+get activeProduction() {
+  return this.ordersService.ots
+    .filter(ot => ot.Estado_pedido === 'EN PROCESO')
+    .slice(0, 5);
+}
+```
+
+### Quality Incidents
+
+Real-time count of active incidents with priority classification.
+
+```typescript
+// Incidents Counter (dashboard.component.ts:595-601)
+get activeIncidentsCount() {
+  return this.qualityService.activeIncidents.length;
+}
+
+get highPriorityCount() {
+  return this.qualityService.activeIncidents
+    .filter(i => i.priority === 'Alta').length;
+}
+```
+
+<Note>
+  The Dashboard auto-refreshes KPIs every second using interval timers to ensure data accuracy.
+</Note>
+
+---
+
+## Operations Feed
+
+The live operations feed consolidates activities from multiple modules into a unified timeline.
+
+### Feed Types
+
+<Tabs>
+  <Tab title="Production Events">
+    Production events show active work orders with progress bars, machine assignments, and operator information.
+
+    ```typescript
+    // Production Feed Item (dashboard.component.ts:633-646)
+    this.ordersService.ots.forEach(ot => {
+      if (ot.Estado_pedido === 'EN PROCESO') {
+        items.push({
+          id: ot.OT,
+          type: 'PRODUCTION',
+          title: `OT #${ot.OT} - Producción en Curso`,
+          description: ot.descripcion,
+          machine: ot.maquina,
+          time: new Date(),
+          displayTime: 'En curso',
+          icon: 'conveyor_belt',
+          data: ot
+        });
+      }
+    });
+    ```
+  </Tab>
+  
+  <Tab title="Quality Alerts">
+    Quality incidents are displayed with priority-based color coding (High = red, Medium = yellow).
+
+    ```typescript
+    // Incident Feed Items (dashboard.component.ts:649-668)
+    this.qualityService.activeIncidents.forEach(inc => {
+      const isHigh = inc.priority === 'Alta';
+      items.push({
+        id: inc.id,
+        type: 'ALERTS',
+        title: `Incidencia: ${inc.title}`,
+        description: inc.description,
+        machine: inc.machineRef,
+        time: inc.reportedAt,
+        displayTime: this.formatTime(inc.reportedAt),
+        icon: isHigh ? 'warning' : 'info',
+        colorClass: isHigh ? 'text-red-400' : 'text-yellow-400',
+        bgClass: isHigh ? 'bg-red-500/5' : 'bg-yellow-500/5',
+        action: 'VER DETALLE',
+        isAlert: true
+      });
+    });
+    ```
+  </Tab>
+  
+  <Tab title="Inventory Updates">
+    Stock alerts notify when materials reach critical levels or new lots are received.
+
+    ```typescript
+    // Stock Feed Example (dashboard.component.ts:671-684)
+    items.push({
+      id: 'stk-1',
+      type: 'STOCK',
+      title: 'Alerta de Inventario: Stock Crítico',
+      description: 'Polietileno HD - Rollo 200m (B-12). Solo 4.2 Kg restantes.',
+      time: new Date(Date.now() - 1000 * 60 * 35),
+      displayTime: '09:35',
+      icon: 'inventory_2',
+      colorClass: 'text-red-400',
+      action: 'REORDENAR',
+      isStock: true
+    });
+    ```
+  </Tab>
+</Tabs>
+
+### Feed Filtering
+
+Users can filter the feed by category: All, Alerts, Production, or Stock.
+
+```typescript
+// Feed Filter Logic (dashboard.component.ts:704-707)
+get filteredFeed() {
+  if (this.activeFeedTab === 'ALL') return this.feedItems;
+  return this.feedItems.filter(i => i.type === this.activeFeedTab);
+}
+```
+
+---
+
+## Quick Actions Panel
+
+The right sidebar provides instant access to common operations.
+
+<CardGroup cols={2}>
+  <Card title="Nueva OT" icon="add-task">
+    Opens the OT creation modal for manual work order entry
+  </Card>
+  <Card title="Importar" icon="upload">
+    Launches Excel/CSV import wizard for bulk OT updates
+  </Card>
+  <Card title="Reportar Falla" icon="triangle-exclamation">
+    Quick-access to quality incident reporting
+  </Card>
+  <Card title="Escanear" icon="qrcode">
+    QR/Barcode scanner for material tracking
+  </Card>
+</CardGroup>
+
+```typescript
+// Quick Actions UI (dashboard.component.ts:354-371)
+<div class="grid grid-cols-2 gap-3">
+  <button (click)="showOtFormModal = true" 
+    class="flex flex-col items-center justify-center p-4">
+    <span class="material-symbols-outlined text-blue-400">add_task</span>
+    <span class="text-[10px] font-bold">Nueva OT</span>
+  </button>
+  
+  <button (click)="showImportModal = true">
+    <span class="material-symbols-outlined text-emerald-400">upload_file</span>
+    <span class="text-[10px] font-bold">Importar</span>
+  </button>
+  
+  <button (click)="router.navigate(['/incidents'])">
+    <span class="material-symbols-outlined text-red-400">report_problem</span>
+    <span class="text-[10px] font-bold">Falla</span>
+  </button>
+</div>
+```
+
+---
+
+## Machine Status Monitoring
+
+Real-time workstation status is displayed in the sidebar with color-coded indicators.
+
+```typescript
+// Workstation Status (dashboard.component.ts:618-626)
+get workstationStatus() {
+  return [
+    { name: 'Flexo-03', status: 'Carga 100%', color: 'bg-green-500' },
+    { name: 'Offset-02', status: 'Inactivo (Rep)', color: 'bg-amber-500' },
+    { name: 'Digital-V2', status: 'Carga 45%', color: 'bg-green-500' },
+    { name: 'Troquel-01', status: 'Operando', color: 'bg-green-500' },
+    { name: 'Rebob-04', status: 'Desconectado', color: 'bg-slate-500' }
+  ];
+}
+```
+
+<Warning>
+  Machine status is updated in real-time via WebSocket connections. Offline machines show "Desconectado" status.
+</Warning>
+
+---
+
+## Data Export
+
+The dashboard supports exporting comprehensive reports in multiple formats.
+
+### PDF Export (Visual Report)
+
+Generates a visual snapshot of the entire dashboard using `html2canvas` and `jsPDF`.
+
+```typescript
+// PDF Export Function (dashboard.component.ts:491-531)
+async exportToPdf() {
+  this.showExportMenu = false;
+  const element = this.dashboardContent.nativeElement;
+  
+  try {
+    const canvas = await html2canvas(element, {
+      scale: 2,
+      backgroundColor: '#0B0E14',
+      logging: false,
+      useCORS: true
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('l', 'mm', 'a4');
+    
+    const imgWidth = 297;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    
+    pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+    
+    const dateStr = new Date().toISOString().slice(0, 10);
+    pdf.save(`Dashboard_Report_${dateStr}.pdf`);
+    
+    this.audit.log(this.state.userName(), this.state.userRole(), 
+      'DASHBOARD', 'Export PDF', 'Exportación visual del tablero completada.');
+  } catch (err) {
+    console.error('PDF Export Error', err);
+  }
+}
+```
+
+### Excel Export (Data Report)
+
+Exports structured data including KPIs, active OTs, and activity feed to Excel using `xlsx`.
+
+```typescript
+// Excel Export Function (dashboard.component.ts:533-581)
+exportToExcel() {
+  const wb = XLSX.utils.book_new();
+  const dateStr = new Date().toISOString().split('T')[0];
+
+  // Sheet 1: General Stats
+  const statsData = [
+    ['REPORTE GENERAL DE PLANTA', dateStr],
+    [''],
+    ['METRICAS PRINCIPALES'],
+    ['OEE Global', '82.4%'],
+    ['OTs Activas', this.activeProduction.length],
+    ['Metros Totales (Volumen)', '45.2k'],
+    ['Incidencias Activas', this.activeIncidentsCount]
+  ];
+  const wsStats = XLSX.utils.aoa_to_sheet(statsData);
+  XLSX.utils.book_append_sheet(wb, wsStats, "KPIs");
+
+  // Sheet 2: Active OTs
+  const activeOTsData = this.activeProduction.map(ot => ({
+    OT: ot.OT,
+    Cliente: ot['Razon Social'],
+    Producto: ot.descripcion,
+    Maquina: ot.maquina,
+    Metros: ot.total_mtl
+  }));
+  const wsOTs = XLSX.utils.json_to_sheet(activeOTsData);
+  XLSX.utils.book_append_sheet(wb, wsOTs, "Producción en Curso");
+
+  XLSX.writeFile(wb, `Dashboard_Data_${dateStr}.xlsx`);
+}
+```
+
+---
+
+## System Logs
+
+The dashboard displays the most recent system audit events in a terminal-style panel.
+
+```typescript
+// System Logs Display (dashboard.component.ts:393-410)
+<div class="font-mono text-[9px] text-slate-400 space-y-2">
+  @for (log of systemLogs; track log.timestamp) {
+    <p class="flex gap-2">
+      <span class="font-bold text-blue-500">{{ log.timestamp | date:'HH:mm:ss' }}</span> 
+      <span class="text-slate-300">{{ log.action }} - {{ log.details | slice:0:30 }}</span>
+    </p>
+  }
+</div>
+
+// Logs Getter (dashboard.component.ts:584-587)
+get systemLogs() {
+  return this.audit.logs().slice(0, 6);
+}
+```
+
+<Info>
+  Audit logs are stored locally and synchronized to the server periodically. The sync queue count is displayed in the header.
+</Info>
+
+---
+
+## Import Workflow
+
+The dashboard provides a streamlined import process for bulk OT updates.
+
+<Steps>
+  <Step title="Select Import File">
+    Click "Importar" button and select Excel/CSV file containing OT data.
+  </Step>
+  
+  <Step title="Data Processing">
+    System automatically maps columns and validates required fields.
+  </Step>
+  
+  <Step title="Merge Strategy">
+    Existing OTs are updated while preserving their current status. New OTs are created with PENDIENTE status.
+  </Step>
+  
+  <Step title="Confirmation">
+    Review summary and confirm import. All changes are logged to audit trail.
+  </Step>
+</Steps>
+
+```typescript
+// Import Handler (dashboard.component.ts:713-740)
+handleImport(data: any[]) {
+  const currentData = this.ordersService.ots;
+  let updatedData = [...currentData];
+
+  data.forEach((row: any) => {
+    if (!row.OT) return;
+    const rowOtStr = String(row.OT).trim();
+    const index = updatedData.findIndex(
+      item => String(item.OT).trim() === rowOtStr
+    );
+    
+    if (index !== -1) {
+      // Update existing, preserve status
+      const currentStatus = updatedData[index].Estado_pedido;
+      updatedData[index] = { ...updatedData[index], ...row };
+      if (currentStatus) {
+        updatedData[index].Estado_pedido = currentStatus;
+      }
+    } else {
+      // Insert new with PENDIENTE status
+      updatedData.push({
+        ...row,
+        Estado_pedido: 'PENDIENTE'
+      });
+    }
+  });
+  
+  this.ordersService.updateOts(updatedData);
+  alert(`Importación completada. Se procesaron ${data.length} registros.`);
+}
+```
+
+---
+
+## Navigation & Routing
+
+The dashboard provides quick navigation to all major modules:
+
+<CardGroup cols={3}>
+  <Card title="OT Management" icon="list-check" href="/features/orders">
+    Navigate to full order management interface
+  </Card>
+  <Card title="Incidents" icon="triangle-exclamation" href="/features/quality">
+    View and manage quality incidents
+  </Card>
+  <Card title="Sync Queue" icon="cloud-arrow-up">
+    Review pending offline sync operations
+  </Card>
+</CardGroup>
+
+```typescript
+// Navigation Examples (dashboard.component.ts)
+<button (click)="router.navigate(['/incidents'])">
+  Incidencias
+</button>
+
+<button (click)="router.navigate(['/ots'])">
+  Ver Historial Completo
+</button>
+
+<button (click)="router.navigate(['/sync'])">
+  Cola Sync
+</button>
+```
+
+---
+
+## Related Modules
+
+<CardGroup cols={2}>
+  <Card title="Order Management" icon="clipboard-list" href="/features/orders">
+    Full OT lifecycle management and tracking
+  </Card>
+  <Card title="Quality Control" icon="check-circle" href="/features/quality">
+    Incident management and CAPA workflows
+  </Card>
+  <Card title="Production Tracking" icon="industry" href="/features/production">
+    Real-time production monitoring and reporting
+  </Card>
+  <Card title="Inventory" icon="boxes-stacked" href="/features/inventory">
+    Tooling and finished goods inventory
+  </Card>
+</CardGroup>

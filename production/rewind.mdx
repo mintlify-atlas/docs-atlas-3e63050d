@@ -1,0 +1,404 @@
+---
+title: 'Rewind Production'
+description: 'Documentation for the Rewind production module covering roll finishing, counting, and quality control'
+icon: 'sync'
+---
+
+The **Rewind Production** module manages the final stage of label production, tracking roll finishing, label counting, and quality assurance for finished goods ready for packaging.
+
+## Overview
+
+The rewind production system handles:
+- **Roll counting** and tracking
+- **Label quantity** verification
+- **Linear meter calculations**
+- **Quality check** validation
+- **Multi-machine operations** (Rebobinadora 1, Rebobinadora 2, Rotoflex, REB EVO)
+
+**Component:** `ProductionRewindComponent`  
+**Location:** `src/features/production/production-rewind.component.ts`
+
+---
+
+## Data Model
+
+While the component uses a simplified inline model, the report structure includes:
+
+<ParamField path="id" type="string" required>
+  Unique report identifier (e.g., "REP-RBB-800")
+</ParamField>
+
+<ParamField path="date" type="Date" required>
+  Report timestamp
+</ParamField>
+
+<ParamField path="ot" type="string" required>
+  Work order number
+</ParamField>
+
+<ParamField path="client" type="string" required>
+  Client name (Razón Social)
+</ParamField>
+
+<ParamField path="description" type="string" required>
+  Product description
+</ParamField>
+
+<ParamField path="machine" type="string" required>
+  Rewinding machine name
+</ParamField>
+
+<ParamField path="rolls" type="number" required>
+  Total number of finished rolls
+</ParamField>
+
+<ParamField path="totalLabels" type="number" required>
+  Total label count across all rolls
+</ParamField>
+
+<ParamField path="meters" type="number" required>
+  Total linear meters produced
+</ParamField>
+
+<ParamField path="qualityCheck" type="boolean" required>
+  Quality inspection passed/pending status
+</ParamField>
+
+---
+
+## Available Machines
+
+Rewind operations support four machine types (`production-rewind.component.ts:101`):
+
+```typescript
+const machines = [
+  'REBOBINADORA 1',
+  'REBOBINADORA 2', 
+  'ROTOFLEX',
+  'REB EVO'
+];
+```
+
+<CardGroup cols={2}>
+  <Card title="REBOBINADORA 1" icon="rotate">
+    Primary rewinding machine for standard operations
+  </Card>
+  <Card title="REBOBINADORA 2" icon="rotate">
+    Secondary rewinding machine for parallel production
+  </Card>
+  <Card title="ROTOFLEX" icon="sync">
+    High-speed rotary rewinder for large volume orders
+  </Card>
+  <Card title="REB EVO" icon="arrows-rotate">
+    Advanced rewinding system with quality inspection capabilities
+  </Card>
+</CardGroup>
+
+---
+
+## Report Generation Logic
+
+The system generates rewind reports from completed work orders (`production-rewind.component.ts:97`):
+
+```typescript
+get reports() {
+  const ots = this.ordersService.ots.slice(5, 20);
+
+  return ots.map((ot, index) => {
+    const machine = machines[index % machines.length];
+    const rolls = Math.floor(Math.random() * 50) + 5;
+    const labelsPerRoll = Math.floor(Math.random() * 2000) + 500;
+    const totalLabels = rolls * labelsPerRoll;
+    const meters = Math.floor(totalLabels * 0.05);
+    
+    const date = new Date();
+    date.setDate(date.getDate() - (index % 3));
+
+    return {
+      id: `REP-RBB-${800 + index}`,
+      date: date,
+      ot: ot.OT,
+      client: ot['Razon Social'],
+      description: ot.descripcion,
+      machine: machine,
+      rolls,
+      totalLabels,
+      meters,
+      qualityCheck: index % 5 !== 0 // 80% pass rate
+    };
+  });
+}
+```
+
+### Calculation Details
+
+**Rolls**: Random count between 5-55 units
+
+**Labels Per Roll**: Random count between 500-2,500 labels
+
+**Total Labels**:
+```typescript
+totalLabels = rolls * labelsPerRoll
+```
+
+**Linear Meters**:
+```typescript
+meters = Math.floor(totalLabels * 0.05)
+```
+This assumes approximately 20 labels per linear meter.
+
+---
+
+## User Interface
+
+### Header Section
+
+```html
+<h1 class="text-xl font-bold text-brand-dark flex items-center gap-2">
+  <span class="material-icons text-orange-500">sync</span>
+  Reportes de Rebobinado
+</h1>
+<p class="text-sm text-gray-500">Acabado final, conteo y empaquetado</p>
+```
+
+- **Icon**: Orange sync symbol representing rewinding action
+- **Description**: "Final finishing, counting, and packaging"
+
+### Action Bar
+
+- **Search input**: Filter reports by OT number
+- **Nuevo Reporte button**: Create new rewind report
+
+---
+
+## Reports Table
+
+The main data table displays rewind reports with the following columns:
+
+<Tabs>
+  <Tab title="Fecha">
+    Report date in dd/MM/yyyy format
+  </Tab>
+  <Tab title="OT">
+    Work order number with orange badge styling
+  </Tab>
+  <Tab title="Cliente / Descripción">
+    Client name (bold) and product description (gray, truncated)
+  </Tab>
+  <Tab title="Máquina">
+    Rewinding machine name
+  </Tab>
+  <Tab title="Total Rollos">
+    Number of finished rolls (right-aligned, bold)
+  </Tab>
+  <Tab title="Etiq. Total">
+    Total label count (right-aligned, bold)
+  </Tab>
+  <Tab title="Metros Lineales">
+    Total linear meters (monospace font)
+  </Tab>
+  <Tab title="Calidad">
+    Quality check status icon:
+    - ✓ Green check: `qualityCheck === true`
+    - ⏱ Gray pending: `qualityCheck === false`
+  </Tab>
+</Tabs>
+
+### Row Styling
+
+```html
+<tr class="hover:bg-orange-50 transition-colors group cursor-default">
+```
+
+Rows highlight with a subtle orange background on hover, matching the orange theme for rewind operations.
+
+---
+
+## Quality Check Status
+
+Quality inspection is tracked with a boolean flag and displayed with Material Icons:
+
+```html
+<span class="material-icons text-sm" 
+      [class.text-green-500]="report.qualityCheck" 
+      [class.text-gray-300]="!report.qualityCheck">
+  {{ report.qualityCheck ? 'check_circle' : 'pending' }}
+</span>
+```
+
+<Tabs>
+  <Tab title="Passed (true)">
+    - **Icon**: `check_circle`
+    - **Color**: Green (`text-green-500`)
+    - **Meaning**: Quality inspection passed, ready for packaging
+  </Tab>
+  <Tab title="Pending (false)">
+    - **Icon**: `pending`
+    - **Color**: Gray (`text-gray-300`)
+    - **Meaning**: Quality inspection not yet completed or failed
+  </Tab>
+</Tabs>
+
+---
+
+## Report Workflow
+
+<Steps>
+  <Step title="Access Module">
+    Navigate to operator terminal and select **Rebobinado** station (ST-03)
+  </Step>
+  
+  <Step title="Select Machine">
+    Choose from available rewinding machines:
+    - REBOBINADORA 1
+    - REBOBINADORA 2
+    - ROTOFLEX
+    - REB EVO
+  </Step>
+  
+  <Step title="Search Work Order">
+    Enter OT number or scan barcode to load order details
+  </Step>
+  
+  <Step title="Record Production Data">
+    Enter the following measurements:
+    
+    **Rolls Finished**: Total number of completed rolls
+    
+    **Labels Per Roll**: Average label count per roll (if uniform), or total label count
+    
+    **Linear Meters**: Total meters produced (optional if system calculates from label count)
+  </Step>
+  
+  <Step title="Perform Quality Check">
+    Inspect finished rolls for:
+    - Proper winding tension
+    - Alignment and registration
+    - Edge quality
+    - Label count accuracy
+    - Core integrity
+    
+    Mark quality check as passed/failed.
+  </Step>
+  
+  <Step title="Submit Report">
+    Click **Nuevo Reporte** or save to create the rewind report.
+    
+    System records:
+    - Roll count
+    - Total labels
+    - Linear meters
+    - Quality status
+  </Step>
+</Steps>
+
+---
+
+## Integration with Packaging
+
+<Note>
+Rewind reports feed directly into the [Packaging](/production/packaging) module. Once quality check passes, rolls are ready for palletizing and final packaging.
+</Note>
+
+The packaging module uses rewind data to:
+- Track available inventory
+- Verify roll counts match packing lists
+- Calculate excess production (demasía)
+
+---
+
+## Calculations and Formulas
+
+### Labels to Meters Conversion
+
+```typescript
+// Assumption: ~20 labels per linear meter
+const LABELS_PER_METER = 20;
+const meters = Math.floor(totalLabels / LABELS_PER_METER);
+
+// Or reverse:
+const estimatedLabels = meters * LABELS_PER_METER;
+```
+
+### Roll Distribution
+
+If total labels and target labels per roll are known:
+
+```typescript
+const targetLabelsPerRoll = 1000;
+const totalLabels = 50000;
+const expectedRolls = Math.ceil(totalLabels / targetLabelsPerRoll);
+// Result: 50 rolls
+```
+
+### Quality Pass Rate
+
+From the report generation logic:
+
+```typescript
+qualityCheck: index % 5 !== 0
+```
+
+This simulates an **80% pass rate** (4 out of 5 reports pass quality inspection).
+
+---
+
+## Report Actions
+
+Each report row includes a **visibility icon** button:
+
+```html
+<button class="text-gray-400 hover:text-orange-600 p-1">
+  <span class="material-icons">visibility</span>
+</button>
+```
+
+This button opens a detailed view (not fully implemented in the provided code) that would show:
+- Full production breakdown
+- Roll-by-roll details
+- Quality inspection notes
+- Operator information
+
+---
+
+## Search Functionality
+
+While the search input is present in the template, the filtering logic is not explicitly shown. A typical implementation would be:
+
+```typescript
+searchTerm = '';
+
+get filteredReports() {
+  const term = this.searchTerm.toLowerCase();
+  if (!term) return this.reports;
+  
+  return this.reports.filter(r => 
+    r.ot.toLowerCase().includes(term) ||
+    r.client.toLowerCase().includes(term) ||
+    r.description?.toLowerCase().includes(term)
+  );
+}
+```
+
+---
+
+## Best Practices
+
+<Check>Verify roll count before marking quality check as passed</Check>
+<Check>Ensure label count matches expected quantity from OT</Check>
+<Check>Inspect winding quality on random sample rolls</Check>
+<Check>Record actual labels per roll if not uniform</Check>
+<Check>Document any discrepancies in label count vs. expected</Check>
+<Check>Coordinate with packaging team for handoff</Check>
+
+<Warning>Do not pass quality check if roll tension is inconsistent</Warning>
+<Warning>Report missing labels immediately to production supervisor</Warning>
+
+---
+
+## Related Modules
+
+- [Packaging](/production/packaging) - Final packaging and palletizing
+- [Diecut Production](/production/diecut) - Preceding conversion stage
+- [Print Production](/production/print) - Original printing stage
+- [Operator Mode](/production/operator-mode) - Full-screen operator interface

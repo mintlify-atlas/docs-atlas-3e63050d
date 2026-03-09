@@ -1,0 +1,413 @@
+---
+title: 'OrdersService'
+description: 'Service for managing work orders (OTs) with active list and internal database functionality'
+---
+
+## Overview
+
+The `OrdersService` manages work orders (Órdenes de Trabajo - OTs) using RxJS BehaviorSubjects. It maintains two separate data stores:
+
+1. **Active OTs** - Currently visible work orders in the application
+2. **Internal Database** - Complete imported OT database for search and reference
+
+**Location:** `src/features/orders/services/orders.service.ts`
+
+**Provider:** Root (singleton)
+
+## Properties
+
+### Active OT List
+
+<ResponseField name="ots" type="Partial<OT>[]">
+  Snapshot of currently active work orders visible in the application.
+</ResponseField>
+
+<ResponseField name="ots$" type="Observable<Partial<OT>[]>">
+  Observable stream of active OTs for reactive subscriptions.
+</ResponseField>
+
+### Internal Database
+
+<ResponseField name="internalDatabase" type="Partial<OT>[]">
+  Snapshot of the complete imported OT database.
+</ResponseField>
+
+<ResponseField name="dbLastUpdated" type="Date | null">
+  Timestamp of the last database update, null if never updated.
+</ResponseField>
+
+<ResponseField name="dbLastUpdated$" type="Observable<Date | null>">
+  Observable stream of last update timestamp.
+</ResponseField>
+
+## Methods
+
+### updateOts
+
+Replaces the entire active OT list with new data.
+
+```typescript
+updateOts(newOts: Partial<OT>[]): void
+```
+
+<ParamField path="newOts" type="Partial<OT>[]" required>
+  Array of OT objects to set as the active list.
+</ParamField>
+
+**Behavior:**
+- Completely replaces current active OT list
+- Emits new value to all `ots$` subscribers
+- Does not affect internal database
+
+<CodeGroup>
+```typescript Example
+import { inject } from '@angular/core';
+import { OrdersService } from './features/orders/services/orders.service';
+
+const ordersService = inject(OrdersService);
+
+const newOrders: Partial<OT>[] = [
+  {
+    OT: '45001',
+    'Razon Social': 'Coca Cola',
+    descripcion: 'Etiqueta 500ml Original',
+    cantidad: 50000,
+    estado: 'En Proceso'
+  },
+  {
+    OT: '45002',
+    'Razon Social': 'Nestle',
+    descripcion: 'Empaque Galleta Chocolate',
+    cantidad: 30000,
+    estado: 'Pendiente'
+  }
+];
+
+ordersService.updateOts(newOrders);
+```
+</CodeGroup>
+
+### deleteOt
+
+Removes a specific OT from the active list by its ID.
+
+```typescript
+deleteOt(otId: string): void
+```
+
+<ParamField path="otId" type="string" required>
+  The OT identifier to remove. Converted to string for comparison.
+</ParamField>
+
+**Behavior:**
+- Filters out the OT matching the provided ID
+- Converts both stored and provided IDs to strings for comparison
+- Emits updated list to subscribers
+- Does not affect internal database
+
+<CodeGroup>
+```typescript Example
+// Delete OT by ID
+ordersService.deleteOt('45001');
+
+// Also works with numeric IDs
+ordersService.deleteOt('45002');
+
+// Verify deletion
+const remaining = ordersService.ots;
+console.log('Remaining OTs:', remaining.length);
+```
+</CodeGroup>
+
+### updateInternalDatabase
+
+Updates the internal database with imported OT data and records timestamp.
+
+```typescript
+updateInternalDatabase(data: Partial<OT>[]): void
+```
+
+<ParamField path="data" type="Partial<OT>[]" required>
+  Complete array of OT data to store in the internal database.
+</ParamField>
+
+**Behavior:**
+- Replaces entire internal database
+- Updates `dbLastUpdated` timestamp to current date/time
+- Does not affect active OT list
+- Enables search functionality via `findInDatabase()`
+
+<CodeGroup>
+```typescript Example
+import { inject } from '@angular/core';
+import { OrdersService } from './features/orders/services/orders.service';
+import * as XLSX from 'xlsx';
+
+const ordersService = inject(OrdersService);
+
+// After importing Excel file
+const workbook = XLSX.read(fileData);
+const sheet = workbook.Sheets[workbook.SheetNames[0]];
+const importedData: any[] = XLSX.utils.sheet_to_json(sheet);
+
+// Store in internal database
+ordersService.updateInternalDatabase(importedData);
+
+// Check last update time
+const lastUpdate = ordersService.dbLastUpdated;
+console.log('Database updated:', lastUpdate);
+```
+</CodeGroup>
+
+### findInDatabase
+
+Searches the internal database for OTs matching the search term.
+
+```typescript
+findInDatabase(searchTerm: string): Partial<OT>[]
+```
+
+<ParamField path="searchTerm" type="string" required>
+  Search query to match against OT number, client name, or description.
+</ParamField>
+
+**Returns:** Array of matching OT objects
+
+**Search Fields:**
+- `OT` - Work order number
+- `Razon Social` - Client/company name
+- `descripcion` - Product description
+
+**Behavior:**
+- Case-insensitive search
+- Matches partial strings (includes)
+- Searches across OT number, client name, and description
+- Returns empty array if no matches found
+
+<CodeGroup>
+```typescript Example
+import { inject } from '@angular/core';
+import { OrdersService } from './features/orders/services/orders.service';
+
+const ordersService = inject(OrdersService);
+
+// Search by OT number
+const byNumber = ordersService.findInDatabase('45001');
+console.log('Found by number:', byNumber);
+
+// Search by client name
+const byClient = ordersService.findInDatabase('coca');
+console.log('Coca Cola orders:', byClient);
+
+// Search by description
+const byProduct = ordersService.findInDatabase('etiqueta');
+console.log('Label orders:', byProduct);
+
+// Case insensitive
+const results = ordersService.findInDatabase('NESTLE');
+console.log('Results:', results.length);
+```
+</CodeGroup>
+
+## Usage Examples
+
+### Subscribe to Active OTs
+
+```typescript
+import { Component, inject, OnInit } from '@angular/core';
+import { OrdersService } from './features/orders/services/orders.service';
+import { OT } from './features/orders/models/orders.models';
+
+@Component({
+  selector: 'app-orders-list',
+  template: `
+    <div class="orders-list">
+      @for (ot of activeOts; track ot.OT) {
+        <div class="order-card">
+          <h3>OT {{ ot.OT }}</h3>
+          <p>{{ ot['Razon Social'] }}</p>
+          <p>{{ ot.descripcion }}</p>
+          <button (click)="removeOrder(ot.OT!)">Eliminar</button>
+        </div>
+      }
+    </div>
+  `
+})
+export class OrdersListComponent implements OnInit {
+  ordersService = inject(OrdersService);
+  activeOts: Partial<OT>[] = [];
+  
+  ngOnInit() {
+    // Subscribe to active OT changes
+    this.ordersService.ots$.subscribe(ots => {
+      this.activeOts = ots;
+      console.log('Active OTs updated:', ots.length);
+    });
+  }
+  
+  removeOrder(otId: string) {
+    this.ordersService.deleteOt(otId);
+  }
+}
+```
+
+### Import and Search Database
+
+```typescript
+import { Component, inject } from '@angular/core';
+import { OrdersService } from './features/orders/services/orders.service';
+import * as XLSX from 'xlsx';
+
+@Component({
+  selector: 'app-orders-import',
+  template: `
+    <div>
+      <input type="file" (change)="onFileSelected($event)" accept=".xlsx,.xls">
+      <input type="text" [(ngModel)]="searchTerm" (input)="onSearch()">
+      <p>Última actualización: {{ lastUpdate | date:'short' }}</p>
+      
+      <div class="search-results">
+        @for (result of searchResults; track result.OT) {
+          <div>{{ result.OT }} - {{ result['Razon Social'] }}</div>
+        }
+      </div>
+    </div>
+  `
+})
+export class OrdersImportComponent {
+  ordersService = inject(OrdersService);
+  searchTerm = '';
+  searchResults: any[] = [];
+  lastUpdate: Date | null = null;
+  
+  onFileSelected(event: any) {
+    const file = event.target.files[0];
+    const reader = new FileReader();
+    
+    reader.onload = (e: any) => {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(sheet);
+      
+      // Update internal database
+      this.ordersService.updateInternalDatabase(jsonData);
+      this.lastUpdate = this.ordersService.dbLastUpdated;
+      
+      console.log('Imported OTs:', jsonData.length);
+    };
+    
+    reader.readAsArrayBuffer(file);
+  }
+  
+  onSearch() {
+    if (this.searchTerm.length >= 2) {
+      this.searchResults = this.ordersService.findInDatabase(this.searchTerm);
+    } else {
+      this.searchResults = [];
+    }
+  }
+}
+```
+
+### Add Selected OTs to Active List
+
+```typescript
+import { inject } from '@angular/core';
+import { OrdersService } from './features/orders/services/orders.service';
+
+const ordersService = inject(OrdersService);
+
+// Search for specific OTs in database
+const colaOrders = ordersService.findInDatabase('Coca Cola');
+
+// Get current active list
+const currentActive = ordersService.ots;
+
+// Add found orders to active list (avoiding duplicates)
+const newActive = [
+  ...currentActive,
+  ...colaOrders.filter(found => 
+    !currentActive.some(active => active.OT === found.OT)
+  )
+];
+
+// Update active list
+ordersService.updateOts(newActive);
+```
+
+### Monitor Database Updates
+
+```typescript
+import { Component, inject, OnInit } from '@angular/core';
+import { OrdersService } from './features/orders/services/orders.service';
+
+@Component({
+  selector: 'app-database-status',
+  template: `
+    <div class="db-status">
+      @if (lastUpdate) {
+        <p>Base de datos actualizada: {{ lastUpdate | date:'medium' }}</p>
+        <p>Total de registros: {{ totalRecords }}</p>
+      } @else {
+        <p>No hay datos importados</p>
+      }
+    </div>
+  `
+})
+export class DatabaseStatusComponent implements OnInit {
+  ordersService = inject(OrdersService);
+  lastUpdate: Date | null = null;
+  totalRecords = 0;
+  
+  ngOnInit() {
+    this.ordersService.dbLastUpdated$.subscribe(date => {
+      this.lastUpdate = date;
+      if (date) {
+        this.totalRecords = this.ordersService.internalDatabase.length;
+      }
+    });
+  }
+}
+```
+
+## OT Data Structure
+
+The `OT` interface typically includes:
+
+```typescript
+interface OT {
+  OT: string | number;                  // Work order number
+  'Razon Social': string;               // Client name
+  descripcion: string;                  // Product description
+  cantidad?: number;                    // Quantity
+  estado?: string;                      // Status
+  fechaEntrega?: string;                // Delivery date
+  // ... additional fields
+}
+```
+
+**Note:** The service uses `Partial<OT>[]` to allow flexible data structures from various import sources.
+
+## Data Flow
+
+```
+Excel Import → updateInternalDatabase() → Internal Database
+                                              ↓
+                                         findInDatabase()
+                                              ↓
+                                         Search Results
+                                              ↓
+User Selection → updateOts() → Active OT List → UI Display
+                                      ↓
+                                deleteOt() → Remove from Active
+```
+
+## Notes
+
+- The service uses RxJS `BehaviorSubject` for reactive data management
+- Active OT list and internal database are independent
+- Search is performed only on internal database
+- Deleting from active list does not remove from database
+- All comparisons use string conversion for robust ID matching
+- The service does not perform validation - handle at component level

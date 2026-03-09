@@ -1,0 +1,290 @@
+---
+title: 'Role Definitions'
+description: 'Configure roles and permissions for access control in P.FLEX'
+icon: 'shield'
+---
+
+## Overview
+
+The Role Management system defines access levels and permissions across the P.FLEX platform. Each role encapsulates a set of permissions that control what users can view and modify in the system.
+
+## Role Data Model
+
+The `RoleDefinition` interface defines the structure of roles:
+
+<ParamField path="id" type="string" required>
+  Unique identifier for the role
+</ParamField>
+
+<ParamField path="name" type="string" required>
+  Display name of the role (e.g., "Supervisor", "Jefatura")
+</ParamField>
+
+<ParamField path="description" type="string" required>
+  Brief description of the role's responsibilities and purpose
+</ParamField>
+
+<ParamField path="permissions" type="string[]" required>
+  Array of permission strings that define what the role can access
+  
+  Example: `["Ver Dashboard", "Aprobar OTs", "Reportes"]`
+</ParamField>
+
+## System Roles
+
+P.FLEX includes four core system roles:
+
+### Jefatura (Management)
+
+```typescript
+// Source: state.service.ts:62
+{
+  id: 'r1',
+  name: 'Jefatura',
+  description: 'Acceso total a reportes, KPIs y aprobación.',
+  permissions: ['Ver Dashboard', 'Aprobar OTs', 'Reportes', 'Gestión Usuarios']
+}
+```
+
+<Card title="Jefatura Permissions" icon="user-tie">
+  - **Ver Dashboard**: Access to executive dashboard and KPIs
+  - **Aprobar OTs**: Approve and manage work orders
+  - **Reportes**: Generate and export production reports
+  - **Gestión Usuarios**: Manage user accounts and permissions
+</Card>
+
+### Supervisor
+
+```typescript
+// Source: state.service.ts:63
+{
+  id: 'r2',
+  name: 'Supervisor',
+  description: 'Gestión de turno y asignación.',
+  permissions: ['Asignar Tareas', 'Cerrar Turno', 'Validar Calidad', 'Ver OTs']
+}
+```
+
+<Card title="Supervisor Permissions" icon="user-check">
+  - **Asignar Tareas**: Assign work orders to operators
+  - **Cerrar Turno**: Close shift and generate shift reports
+  - **Validar Calidad**: Validate quality control checks
+  - **Ver OTs**: View work orders (read-only)
+</Card>
+
+### Operario (Operator)
+
+```typescript
+// Source: state.service.ts:64
+{
+  id: 'r3',
+  name: 'Operario',
+  description: 'Registro de producción.',
+  permissions: ['Registrar Producción', 'Ver OTs']
+}
+```
+
+<Card title="Operario Permissions" icon="user-hard-hat">
+  - **Registrar Producción**: Record production quantities and status
+  - **Ver OTs**: View assigned work orders
+  
+  <Info>Operarios can be restricted to specific production areas</Info>
+</Card>
+
+### Sistemas (System Admin)
+
+```typescript
+// Source: state.service.ts:65
+{
+  id: 'r4',
+  name: 'Sistemas',
+  description: 'Configuración técnica.',
+  permissions: ['Admin Total']
+}
+```
+
+<Card title="Sistemas Permissions" icon="server">
+  - **Admin Total**: Full system access including:
+    - System configuration
+    - Database management
+    - User administration
+    - Machine configuration
+    - Security settings
+</Card>
+
+## Role Management Operations
+
+### Updating a Role
+
+Modify role permissions using `updateRole()`:
+
+```typescript
+// Source: admin.service.ts:46-49
+updateRole(updatedRole: RoleDefinition) {
+  this.state.adminRoles.update(roles => 
+    roles.map(r => r.id === updatedRole.id ? updatedRole : r)
+  );
+  this.audit.log(this.state.userName(), this.state.userRole(), 'ADMIN', 
+    'Actualizar Rol', `Rol modificado: ${updatedRole.name}`);
+}
+```
+
+<Steps>
+  <Step title="Open Role Editor">
+    Click on a role card or select "Editar" from the role menu
+  </Step>
+  
+  <Step title="Modify Permissions">
+    Toggle permissions on/off using the permission checkboxes:
+    - Dashboard access
+    - Inventory management
+    - Quality validation
+    - Report generation
+  </Step>
+  
+  <Step title="Update Description">
+    Modify the role description to reflect its responsibilities
+  </Step>
+  
+  <Step title="Save Changes">
+    Click "Guardar Rol" to apply changes. All users with this role will immediately receive updated permissions.
+  </Step>
+</Steps>
+
+### Deleting a Role
+
+Remove custom roles using `deleteRole()`:
+
+```typescript
+// Source: admin.service.ts:51-55
+deleteRole(id: string) {
+  const role = this.state.adminRoles().find(r => r.id === id);
+  this.state.adminRoles.update(roles => roles.filter(r => r.id !== id));
+  this.audit.log(this.state.userName(), this.state.userRole(), 'ADMIN', 
+    'Eliminar Rol', `Rol eliminado: ${role?.name || id}`);
+}
+```
+
+<Warning>
+  Do not delete system roles (Jefatura, Supervisor, Operario, Sistemas) as they are referenced throughout the application.
+</Warning>
+
+## Permission System
+
+The permission system uses string-based permission keys:
+
+### Available Permissions
+
+<AccordionGroup>
+  <Accordion title="Dashboard & Reporting" icon="chart-line">
+    - `Ver Dashboard` - View production dashboard and metrics
+    - `Reportes` - Generate and export reports
+    - `Ver KPIs` - Access key performance indicators
+  </Accordion>
+  
+  <Accordion title="Work Order Management" icon="clipboard-list">
+    - `Ver OTs` - View work orders (read-only)
+    - `Aprobar OTs` - Approve and modify work orders
+    - `Asignar Tareas` - Assign work orders to operators
+  </Accordion>
+  
+  <Accordion title="Production & Quality" icon="industry">
+    - `Registrar Producción` - Record production data
+    - `Validar Calidad` - Perform quality control validation
+    - `Cerrar Turno` - Close shift and generate reports
+  </Accordion>
+  
+  <Accordion title="Inventory" icon="boxes">
+    - `Ver Inventario` - View inventory levels
+    - `Ajustar Inventario` - Manually adjust stock quantities
+  </Accordion>
+  
+  <Accordion title="Administration" icon="cog">
+    - `Gestión Usuarios` - Create and manage user accounts
+    - `Admin Total` - Full system administration access
+  </Accordion>
+</AccordionGroup>
+
+## Permission Matrix
+
+The role management interface displays a visual permission matrix:
+
+```typescript
+// Source: admin-roles.component.ts:119-122
+<span class="material-symbols-outlined text-lg" 
+      [ngClass]="role.permissions.includes('Ver Dashboard') ? 
+                  'text-green-500' : 'text-slate-600'">
+  {{ role.permissions.includes('Ver Dashboard') ? 'check_circle' : 'cancel' }}
+</span>
+```
+
+| Module | Jefatura | Supervisor | Operario | Sistemas |
+|--------|----------|------------|----------|----------|
+| Dashboard | ✅ | ❌ | ❌ | ✅ |
+| Configuración Global | ❌ | ❌ | ❌ | ✅ |
+| Edición de Registros | ✅ | ⚠️ | ❌ | ✅ |
+
+<Note>
+  ✅ = Full Access | ⚠️ = Limited Access | ❌ = No Access
+</Note>
+
+## Managing Permissions
+
+### Toggle Permission
+
+Permissions can be toggled programmatically:
+
+```typescript
+// Source: admin-roles.component.ts:267-278
+hasPermission(perm: string): boolean {
+  return this.tempRole.permissions?.includes(perm) || false;
+}
+
+togglePermission(perm: string) {
+  if (!this.tempRole.permissions) this.tempRole.permissions = [];
+  
+  if (this.tempRole.permissions.includes(perm)) {
+    this.tempRole.permissions = 
+      this.tempRole.permissions.filter(p => p !== perm);
+  } else {
+    this.tempRole.permissions.push(perm);
+  }
+}
+```
+
+## Audit Logging
+
+All role modifications are logged:
+
+| Action | Module | Details |
+|--------|--------|----------|
+| Update Role | `ADMIN` | Role name and modified permissions |
+| Delete Role | `ADMIN` | Role name |
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Principle of Least Privilege" icon="lock">
+    Assign only the minimum permissions required for each role to perform their duties
+  </Card>
+  
+  <Card title="Regular Audits" icon="clipboard-check">
+    Periodically review role permissions to ensure they align with current responsibilities
+  </Card>
+  
+  <Card title="Document Changes" icon="file-lines">
+    Use descriptive role descriptions to document the purpose and scope of each role
+  </Card>
+  
+  <Card title="Test Before Deploy" icon="vial">
+    Test permission changes with a test account before applying to production roles
+  </Card>
+</CardGroup>
+
+## Code Reference
+
+Key source files:
+- **Data Model**: `src/features/admin/models/admin.models.ts:13-18`
+- **Service Methods**: `src/features/admin/services/admin.service.ts:42-55`
+- **UI Component**: `src/features/admin/components/admin-roles.component.ts`
+- **Default Roles**: `src/services/state.service.ts:61-66`

@@ -1,0 +1,240 @@
+---
+title: Installation
+description: Install and set up the P.FLEX industrial ERP system
+icon: "download"
+---
+
+## System Requirements
+
+Before installing P.FLEX, ensure your system meets these requirements:
+
+<CardGroup cols={2}>
+  <Card title="Operating System" icon="desktop">
+    - Windows 10/11 Pro or Enterprise
+    - Linux (Ubuntu 20.04+ or RHEL 8+)
+    - macOS 12+ (for development only)
+  </Card>
+  <Card title="Hardware" icon="microchip">
+    - 4GB RAM minimum (8GB recommended)
+    - 500MB free disk space
+    - Network connectivity for sync
+  </Card>
+  <Card title="Browser" icon="globe">
+    - Chrome 90+
+    - Firefox 88+
+    - Edge 90+
+  </Card>
+  <Card title="Network" icon="wifi">
+    - Stable connection (optional for offline mode)
+    - Port 80/443 access
+    - Industrial mesh network compatible
+  </Card>
+</CardGroup>
+
+## Installation Steps
+
+<Steps>
+  <Step title="Download P.FLEX">
+    Download the latest version from your organization's software repository or IT department.
+    
+    ```bash
+    # For Linux/macOS
+    wget https://your-server.com/pflex-installer.sh
+    chmod +x pflex-installer.sh
+    ./pflex-installer.sh
+    ```
+
+    ```powershell
+    # For Windows
+    Invoke-WebRequest -Uri "https://your-server.com/pflex-installer.exe" -OutFile "pflex-installer.exe"
+    .\pflex-installer.exe
+    ```
+  </Step>
+
+  <Step title="Run the Installer">
+    Execute the installer and follow the on-screen prompts:
+
+    <Tabs>
+      <Tab title="Windows">
+        1. Run `pflex-installer.exe` as Administrator
+        2. Choose installation directory (default: `C:\Program Files\PFLEX`)
+        3. Select components:
+           - **Core Application** (required)
+           - **Offline Sync Module** (recommended)
+           - **Desktop Shortcuts**
+        4. Click **Install**
+      </Tab>
+      <Tab title="Linux">
+        ```bash
+        # Run installer
+        sudo ./pflex-installer.sh
+        
+        # Follow prompts
+        # Installation directory: /opt/pflex
+        # Service installation: systemd
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Configure Network Settings">
+    After installation, configure your network connection:
+
+    **Terminal Configuration:**
+    
+    The system automatically detects your region based on timezone:
+
+    ```typescript
+    // Region detection from login.component.ts:242-256
+    get regionCode(): string {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      
+      if (tz.includes('Lima') || tz.includes('Bogota')) return 'SA-WEST-1';
+      if (tz.includes('Santiago') || tz.includes('La_Paz')) return 'SA-WEST-2';
+      if (tz.includes('Sao_Paulo') || tz.includes('Buenos_Aires')) return 'SA-EAST-1';
+      
+      return tz.split('/').pop()?.toUpperCase().replace(/_/g, '-') || 'GLOBAL-NODE';
+    }
+    ```
+
+    <Note>
+      **Terminal ID** is automatically assigned during installation based on your workstation. Example: `W9M-04-A`
+    </Note>
+  </Step>
+
+  <Step title="Verify Installation">
+    Open the application and verify the system status:
+
+    <Tabs>
+      <Tab title="Web Access">
+        Navigate to: `http://localhost:8080` or your configured URL
+        
+        You should see the login screen with:
+        - **System Status**: "Sistema: En Línea" (green indicator)
+        - **Connection Status**: "Conexión Encriptada" badge
+        - **Offline Mode**: "Modo Offline Activo" badge
+      </Tab>
+      <Tab title="Desktop App">
+        Launch P.FLEX from your applications menu or desktop shortcut.
+        
+        The application will display:
+        ```
+        P.FLEX - Label Peru S.A.C.
+        Build v2.4.1-stable
+        Terminal ID: [YOUR-ID]
+        Region: [AUTO-DETECTED]
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Initial Configuration">
+    Contact your system administrator to:
+    - Obtain your user credentials
+    - Get assigned to appropriate shift (Turno Día or Turno Noche)
+    - Receive role assignment (Operario, Supervisor, Jefatura, or Sistemas)
+    
+    <Warning>
+      Do not share your credentials with other users. Each operator must have their own account for audit trail purposes.
+    </Warning>
+  </Step>
+</Steps>
+
+## Offline Mode Setup
+
+P.FLEX includes powerful offline capabilities for uninterrupted operation:
+
+### Enable Offline Sync
+
+```typescript
+// System automatically manages sync status
+// From state.service.ts:50
+readonly syncStatus = signal<SyncStatus>('online');
+readonly pendingSyncCount = signal<number>(0);
+```
+
+<Steps>
+  <Step title="Enable Offline Mode">
+    From the Settings panel:
+    1. Navigate to **Admin** → **System** → **Sync Center**
+    2. Toggle **Enable Offline Mode**
+    3. Set sync interval (default: 5 minutes)
+  </Step>
+  
+  <Step title="Configure Storage">
+    Choose local storage location for offline data:
+    - Windows: `C:\ProgramData\PFLEX\offline`
+    - Linux: `/var/lib/pflex/offline`
+    
+    <Note>
+      Ensure at least 1GB free space for offline data cache.
+    </Note>
+  </Step>
+  
+  <Step title="Test Offline Mode">
+    Disconnect from network and verify:
+    - Login screen shows "Modo Offline Activo"
+    - Production reports can still be created
+    - Data syncs automatically when connection restored
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Cannot connect to server">
+    1. Check network connectivity
+    2. Verify firewall settings (ports 80/443)
+    3. Confirm server URL in configuration
+    4. Try offline mode if available
+    
+    ```bash
+    # Test connection
+    ping your-pflex-server.com
+    curl -I https://your-pflex-server.com
+    ```
+  </Accordion>
+  
+  <Accordion title="Application won't start">
+    - Verify all system requirements are met
+    - Check application logs:
+      - Windows: `%APPDATA%\PFLEX\logs`
+      - Linux: `/var/log/pflex/`
+    - Reinstall if necessary
+  </Accordion>
+  
+  <Accordion title="Offline sync not working">
+    1. Enable offline mode in settings
+    2. Check local storage permissions
+    3. Verify disk space availability
+    4. Review sync logs in Admin → Sync Center
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Login Guide" icon="right-to-bracket" href="/getting-started/login">
+    Learn how to log in and authenticate
+  </Card>
+  <Card title="User Roles" icon="users" href="/getting-started/user-roles">
+    Understand different user roles and permissions
+  </Card>
+  <Card title="Navigation" icon="compass" href="/getting-started/navigation">
+    Master the application interface
+  </Card>
+  <Card title="Dashboard" icon="chart-line" href="/dashboard/overview">
+    Explore the main dashboard
+  </Card>
+</CardGroup>
+
+## Support
+
+<Card title="IT Support" icon="headset">
+  **Soporte Operativo IT**
+  
+  For installation issues, contact your IT department:
+  - Email: soporte@labelperu.com
+  - Internal: Extension 4000
+  - Emergency: Check your terminal info panel
+</Card>

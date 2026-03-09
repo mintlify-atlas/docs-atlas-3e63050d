@@ -1,0 +1,634 @@
+---
+title: 'Production Planning & Scheduling'
+description: 'Gantt-style production scheduler with machine assignment, shift management, and resource validation'
+icon: 'calendar-days'
+---
+
+## Overview
+
+The Production Planning module provides visual scheduling capabilities with a Gantt chart interface. It enables planners to assign work orders to machines, manage shift schedules, and validate resource availability before production begins.
+
+<CardGroup cols={2}>
+  <Card title="Gantt Scheduling" icon="chart-gantt">
+    Visual timeline showing machine assignments and production runs
+  </Card>
+  <Card title="Shift Management" icon="sun-moon">
+    Separate views for day and night shifts with 12-hour timelines
+  </Card>
+  <Card title="Machine Status" icon="toggle-on">
+    Real-time machine state management (Operativa/Mantenimiento/Detenida)
+  </Card>
+  <Card title="Resource Validation" icon="clipboard-check">
+    Pre-production verification of tooling and material availability
+  </Card>
+</CardGroup>
+
+---
+
+## Gantt Chart Interface
+
+The scheduler displays a time-based grid with machines on the Y-axis and hours on the X-axis.
+
+### Timeline Structure
+
+```typescript
+// Shift Time Slots (schedule.component.ts:452)
+get timeSlots() { 
+  return this.selectedShift === 'DIA' ? 
+    ['07:00', '08:00', '09:00', '10:00', '11:00', '12:00', 
+     '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'] : 
+    ['19:00', '20:00', '21:00', '22:00', '23:00', '00:00', 
+     '01:00', '02:00', '03:00', '04:00', '05:00', '06:00']; 
+}
+```
+
+<Tabs>
+  <Tab title="Day Shift (Día)">
+    **Hours:** 07:00 - 18:00 (12 hours)
+    
+    **Teams:** Typically Team A
+    
+    **Visual:** Yellow sun icon, bright color scheme
+    
+    ```typescript
+    // Day Shift Button (schedule.component.ts:56-62)
+    <button (click)="setShift('DIA')" 
+      [class.bg-yellow-500]="selectedShift === 'DIA'" 
+      [class.text-black]="selectedShift === 'DIA'">
+      <span class="material-icons">wb_sunny</span> DÍA
+    </button>
+    ```
+  </Tab>
+  
+  <Tab title="Night Shift (Noche)">
+    **Hours:** 19:00 - 06:00 (12 hours, spans midnight)
+    
+    **Teams:** Typically Team B
+    
+    **Visual:** Moon icon, dark blue color scheme
+    
+    ```typescript
+    // Night Shift Button (schedule.component.ts:63-69)
+    <button (click)="setShift('NOCHE')" 
+      [class.bg-indigo-600]="selectedShift === 'NOCHE'" 
+      [class.text-white]="selectedShift === 'NOCHE'">
+      <span class="material-icons">nights_stay</span> NOCHE
+    </button>
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Production Areas
+
+Scheduling is organized by production area, with machines filtered accordingly:
+
+### Area Tabs
+
+```typescript
+// Area Selection (schedule.component.ts:86-111)
+<div class="flex gap-1 border-b border-white/10">
+  <button (click)="selectedArea = 'IMPRESION'"
+    [class.text-primary]="selectedArea === 'IMPRESION'"
+    [class.border-primary]="selectedArea === 'IMPRESION'">
+    <span class="material-icons text-sm">print</span> Impresión
+  </button>
+  
+  <button (click)="selectedArea = 'TROQUELADO'"
+    [class.text-purple-400]="selectedArea === 'TROQUELADO'">
+    <span class="material-icons text-sm">content_cut</span> Troquelado
+  </button>
+  
+  <button (click)="selectedArea = 'REBOBINADO'"
+    [class.text-orange-400]="selectedArea === 'REBOBINADO'">
+    <span class="material-icons text-sm">sync</span> Rebobinado
+  </button>
+</div>
+```
+
+### Machine Filtering
+
+```typescript
+// Area-Based Machine Filter (schedule.component.ts:446-451)
+get filteredMachines() {
+  let typeFilter = 'Impresión';
+  if (this.selectedArea === 'TROQUELADO') typeFilter = 'Troquelado';
+  if (this.selectedArea === 'REBOBINADO') typeFilter = 'Acabado';
+  
+  return this.state.adminMachines().filter(m => m.type === typeFilter);
+}
+```
+
+<CardGroup cols={3}>
+  <Card title="Impresión (Print)" icon="print">
+    Flexographic and digital printing machines
+  </Card>
+  <Card title="Troquelado (Die-cut)" icon="scissors">
+    Rotary and flatbed die-cutting stations
+  </Card>
+  <Card title="Rebobinado (Rewind)" icon="rotate">
+    Slitting and rewinding equipment
+  </Card>
+</CardGroup>
+
+---
+
+## Machine Status Management
+
+Each machine has a real-time status that affects scheduling:
+
+### Status States
+
+<AccordionGroup>
+  <Accordion title="Operativa (Operational)" icon="circle-check">
+    Machine is available and can accept production assignments.
+    
+    **Visual:** Green indicator dot with glow effect
+    
+    **Scheduling:** Jobs can be assigned and displayed on timeline
+  </Accordion>
+  
+  <Accordion title="Mantenimiento (Maintenance)" icon="wrench">
+    Machine is undergoing scheduled or preventive maintenance.
+    
+    **Visual:** Amber indicator, diagonal stripe pattern background
+    
+    **Scheduling:** No jobs shown, timeline displays "MANTENIMIENTO" label
+  </Accordion>
+  
+  <Accordion title="Sin Operador (No Operator)" icon="user-slash">
+    Machine is functional but lacks assigned operator.
+    
+    **Visual:** Gray indicator
+    
+    **Scheduling:** No jobs shown, timeline displays "SIN OPERADOR" label
+  </Accordion>
+  
+  <Accordion title="Detenida (Stopped)" icon="circle-xmark">
+    Machine is down due to breakdown or critical issue.
+    
+    **Visual:** Red indicator with pulsing animation
+    
+    **Scheduling:** No jobs shown, timeline displays "DETENIDA" label
+  </Accordion>
+</AccordionGroup>
+
+### Inline Status Editor
+
+Planners can change machine status directly in the schedule:
+
+```typescript
+// Editable Status Dropdown (schedule.component.ts:158-177)
+<div class="relative" (click)="$event.stopPropagation()">
+  <select [ngModel]="machine.status" 
+    (ngModelChange)="updateMachineStatus(machine, $event)"
+    class="appearance-none bg-black/40 border rounded-lg px-2 py-0.5 text-[9px] font-bold uppercase"
+    [ngClass]="{
+      'text-emerald-400 border-emerald-500/30': machine.status === 'Operativa',
+      'text-amber-400 border-amber-500/30': machine.status === 'Mantenimiento',
+      'text-red-400 border-red-500/30': machine.status === 'Detenida',
+      'text-slate-400 border-white/10': machine.status === 'Sin Operador'
+    }">
+    <option value="Operativa">OPERATIVA</option>
+    <option value="Mantenimiento">MANTENIMIENTO</option>
+    <option value="Sin Operador">SIN OPERADOR</option>
+    <option value="Detenida">DETENIDA</option>
+  </select>
+</div>
+
+// Update Handler (schedule.component.ts:466)
+updateMachineStatus(machine: any, newStatus: any) { 
+  this.state.updateMachine({ ...machine, status: newStatus }); 
+}
+```
+
+---
+
+## Production Job Assignment
+
+Jobs are visual blocks positioned on the timeline based on start time and duration.
+
+### Job Data Model
+
+```typescript
+// Job Structure (schedule.component.ts:405-411)
+{
+  id: 'j1',
+  ot: '45001',                   // Work order reference
+  client: 'Coca Cola',
+  description: 'Etiquetas 500ml',
+  machineId: 'p1',               // Machine assignment
+  start: '07:30',                // Start time (HH:mm)
+  duration: 150,                 // Duration in minutes
+  color: '#3b82f6',              // Visual color coding
+  operator: 'Juan Martinez',
+  meters: 15000                  // Expected production volume
+}
+```
+
+### Position Calculation
+
+Jobs are positioned using percentage-based CSS:
+
+```typescript
+// Calculate Left Position (schedule.component.ts:481-487)
+calculateLeft(job: any): number {
+  const startHour = parseInt(job.start.split(':')[0]);
+  const startMin = parseInt(job.start.split(':')[1]);
+  const offset = this.getHourOffset(startHour, startMin);
+  
+  if (offset < 0) return -100; // Hide if outside shift window
+  return (offset / 12) * 100;   // Percentage of timeline
+}
+
+// Calculate Width (schedule.component.ts:488)
+calculateWidth(job: any): number { 
+  return ((job.duration / 60) / 12) * 100; 
+}
+```
+
+### Job Display
+
+```typescript
+// Job Block UI (schedule.component.ts:202-220)
+<div *ngFor="let job of getJobsForMachine(machine.id)"
+  class="absolute top-2 bottom-2 rounded-lg border shadow-lg flex items-center cursor-pointer"
+  [style.left.%]="calculateLeft(job)"
+  [style.width.%]="calculateWidth(job)"
+  [style.background-color]="job.color + 'D9'"
+  [style.border-color]="job.color"
+  (click)="openEditModal(job)">
+  
+  <div class="flex justify-between items-center w-full px-2">
+    <div class="flex flex-col">
+      <span class="text-[10px] font-bold text-white truncate">
+        OT #{{ job.ot }}
+      </span>
+      <span class="text-[9px] text-white/90 truncate">
+        {{ job.client }}
+      </span>
+    </div>
+    
+    <div *ngIf="calculateWidth(job) > 6" 
+      class="bg-black/20 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold text-white">
+      {{ (job.meters || 0) | number }} m
+    </div>
+  </div>
+</div>
+```
+
+---
+
+## Job Assignment Modal
+
+Clicking the "ASIGNAR" button opens a detailed assignment form:
+
+### Assignment Form Fields
+
+```typescript
+// Assignment Modal (schedule.component.ts:246-380)
+<div *ngIf="showJobModal" class="fixed inset-0 z-[60]">
+  <div class="glassmorphism-card w-full max-w-2xl rounded-2xl">
+    <!-- Header -->
+    <div class="px-6 py-4 border-b">
+      <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+        <span class="material-icons text-primary">add_circle</span>
+        {{ isEditing ? 'Detalle de Asignación' : 'Asignar Nueva Producción' }}
+      </h2>
+    </div>
+    
+    <!-- Body -->
+    <div class="p-6 space-y-6">
+      <!-- OT Search -->
+      <div class="col-span-2">
+        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">
+          Orden de Trabajo (OT)
+        </label>
+        <input type="text" [(ngModel)]="currentJob.ot" 
+          class="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm text-white" 
+          placeholder="Buscar por #OT, Cliente o Producto...">
+      </div>
+      
+      <!-- Machine & Operator -->
+      <div class="grid grid-cols-2 gap-6">
+        <div>
+          <label class="block text-xs font-bold text-slate-400 uppercase mb-1">
+            Máquina Asignada
+          </label>
+          <select [(ngModel)]="currentJob.machineId" 
+            class="w-full pl-3 pr-10 py-2.5 rounded-xl text-sm text-white">
+            <option *ngFor="let m of filteredMachines" [value]="m.id">
+              {{ m.name }} ({{ m.code }})
+            </option>
+          </select>
+        </div>
+        
+        <div>
+          <label class="block text-xs font-bold text-slate-400 uppercase mb-1">
+            Operador Responsable
+          </label>
+          <select [(ngModel)]="currentJob.operator" 
+            class="w-full pl-3 pr-8 py-2.5 rounded-xl text-sm text-white">
+            <option value="Juan Martinez">Juan Martinez (Turno A)</option>
+            <option value="Carlos Ruiz">Carlos Ruiz (Turno B)</option>
+            <option value="Ana Lopez">Ana Lopez (Turno A)</option>
+          </select>
+        </div>
+      </div>
+      
+      <!-- Timing -->
+      <div class="grid grid-cols-2 gap-6">
+        <div>
+          <label class="block text-xs font-bold text-slate-400 uppercase mb-1">
+            Inicio Programado
+          </label>
+          <input type="datetime-local" [(ngModel)]="tempStartDateTime" 
+            class="w-full px-3 py-2.5 rounded-xl text-sm text-white [color-scheme:dark]">
+        </div>
+        
+        <div>
+          <label class="block text-xs font-bold text-slate-400 uppercase mb-1">
+            Duración Estimada
+          </label>
+          <div class="flex">
+            <input type="number" [(ngModel)]="tempDurationHours" 
+              class="flex-1 px-3 py-2.5 rounded-l-xl text-sm text-white" 
+              placeholder="0">
+            <span class="inline-flex items-center px-3 rounded-r-xl border text-sm font-bold">
+              Horas
+            </span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Resource Validation -->
+      <div class="border-t pt-4">
+        <h3 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
+          <span class="material-icons text-base text-slate-400">fact_check</span>
+          Validación de Recursos
+        </h3>
+        
+        <div class="grid grid-cols-2 gap-3">
+          <!-- Tooling Status -->
+          <div class="bg-emerald-900/20 border border-emerald-500/20 rounded-xl p-3 flex items-start gap-3">
+            <span class="material-icons text-emerald-400 text-xl">check_circle</span>
+            <div>
+              <p class="text-sm font-medium text-emerald-300">Clisés / Troqueles</p>
+              <p class="text-xs text-emerald-400/70">Disponibles en almacén #04.</p>
+            </div>
+          </div>
+          
+          <!-- Material Status -->
+          <div class="bg-amber-900/20 border border-amber-500/20 rounded-xl p-3 flex items-start gap-3">
+            <span class="material-icons text-amber-400 text-xl">inventory_2</span>
+            <div>
+              <p class="text-sm font-medium text-amber-300">Material Sustrato</p>
+              <p class="text-xs text-amber-400/70">Stock bajo. Requiere confirmación.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Production Notes -->
+      <div>
+        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">
+          Notas de Producción
+        </label>
+        <textarea [(ngModel)]="currentJob.description" 
+          class="w-full px-3 py-2.5 rounded-xl text-sm text-white resize-none" 
+          placeholder="Instrucciones especiales para el operador..." rows="2">
+        </textarea>
+      </div>
+    </div>
+    
+    <!-- Footer -->
+    <div class="px-6 py-4 border-t flex items-center justify-between">
+      <button (click)="showJobModal = false" 
+        class="text-sm text-slate-400 hover:text-white font-medium">
+        Cancelar
+      </button>
+      
+      <div class="flex items-center gap-3">
+        <button *ngIf="isEditing" (click)="openValidationWizard()" 
+          class="bg-white/5 hover:bg-white/10 border border-primary/50 text-primary px-4 py-2 rounded-xl text-sm font-bold">
+          <span class="material-icons text-sm">fact_check</span> Validar Recursos
+        </button>
+        
+        <button (click)="saveJob()" 
+          class="bg-primary hover:bg-blue-600 text-white px-5 py-2 rounded-xl shadow-lg text-sm font-bold">
+          <span class="material-icons text-base">save</span> Confirmar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+### Save Job Handler
+
+```typescript
+// Save Assignment (schedule.component.ts:513-522)
+saveJob() {
+  // Convert datetime-local to HH:mm format
+  if (this.tempStartDateTime) {
+    const d = new Date(this.tempStartDateTime);
+    this.currentJob.start = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  }
+  
+  this.currentJob.duration = Math.round(this.tempDurationHours * 60);
+  
+  if (this.isEditing) {
+    this._jobs = this._jobs.map(j => j.id === this.currentJob.id ? this.currentJob : j);
+  } else {
+    this.currentJob.id = Math.random().toString(36).substr(2, 9);
+    this._jobs.push(this.currentJob);
+  }
+  
+  this.showJobModal = false;
+}
+```
+
+---
+
+## Real-Time "Now" Line
+
+A vertical line indicates the current time on the timeline:
+
+```typescript
+// Now Line Update (schedule.component.ts:489-496)
+updateNowLine() {
+  const now = new Date();
+  const offset = this.getHourOffset(now.getHours(), now.getMinutes());
+  
+  if (offset >= 0 && offset <= 12) {
+    this.currentLinePosition = `calc((1 - ${offset / 12}) * 16rem + ${(offset / 12) * 100}%)`;
+    this.showNowLine = true;
+  } else { 
+    this.showNowLine = false; 
+  }
+}
+
+// Display (schedule.component.ts:235-240)
+<div class="absolute top-0 bottom-0 pointer-events-none z-40 border-l-2 border-red-500/60 border-dashed"
+  *ngIf="showNowLine"
+  [style.left]="currentLinePosition">
+  <div class="absolute -top-1 -left-1 w-2 h-2 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div>
+  <div class="absolute top-2 -left-10 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">AHORA</div>
+</div>
+```
+
+<Info>
+  The "Now" line updates every minute via an interval timer, providing real-time awareness during the shift.
+</Info>
+
+---
+
+## KPI Bar
+
+The top of the scheduler displays plant-wide KPIs:
+
+```typescript
+// KPI Bar (schedule.component.ts:21-39)
+<section class="bg-white/5 border-b px-6 py-2 flex items-center gap-6">
+  <div class="flex items-center gap-2 bg-red-500/10 border border-red-500/20 px-3 py-1 rounded-full">
+    <span class="material-icons text-red-500">error</span>
+    <span class="text-xs font-bold text-red-400">
+      {{ kpiCriticalAlerts }} Alertas Críticas
+    </span>
+  </div>
+  
+  <div class="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full">
+    <span class="material-icons text-emerald-500">check_circle</span>
+    <span class="text-xs font-bold text-emerald-400">
+      {{ kpiEfficiency }}% Disponibilidad Global
+    </span>
+  </div>
+  
+  <div class="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full">
+    <span class="material-icons text-blue-500">inventory_2</span>
+    <span class="text-xs font-bold text-blue-400">
+      {{ kpiPendingJobs }} Trabajos Pendientes
+    </span>
+  </div>
+</section>
+```
+
+### Real-Time KPI Calculations
+
+```typescript
+// KPI Getters (schedule.component.ts:430-443)
+get kpiCriticalAlerts() {
+  return this.qualityService.activeIncidents.filter(i => i.priority === 'Alta').length;
+}
+
+get kpiEfficiency() {
+  const machines = this.state.adminMachines();
+  if (machines.length === 0) return 0;
+  const active = machines.filter(m => m.status === 'Operativa').length;
+  return Math.round((active / machines.length) * 100);
+}
+
+get kpiPendingJobs() {
+  return this.ordersService.ots.filter(ot => ot.Estado_pedido === 'PENDIENTE').length;
+}
+```
+
+---
+
+## PDF Export
+
+Planners can export the current schedule to PDF for distribution:
+
+```typescript
+// PDF Export (schedule.component.ts:532-571)
+async exportToPdf() {
+  this.showJobModal = false;
+  const el = this.scheduleContainer();
+  if (!el) return;
+  
+  const element = el.nativeElement;
+
+  try {
+    const canvas = await html2canvas(element, { 
+      scale: 2,
+      backgroundColor: '#0f172a',
+      logging: false
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    
+    const pdf = new jsPDF('l', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    const imgProps = pdf.getImageProperties(imgData);
+    const imgWidth = pageWidth;
+    const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+
+    if (imgHeight > pageHeight) {
+      const ratio = pageHeight / imgProps.height;
+      const fitW = imgProps.width * ratio;
+      const fitH = pageHeight;
+      pdf.addImage(imgData, 'PNG', (pageWidth - fitW) / 2, 0, fitW, fitH);
+    } else {
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+    }
+    
+    const dateStr = new Date().toISOString().split('T')[0];
+    pdf.save(`Programacion_${dateStr}.pdf`);
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    alert('Hubo un error al generar el PDF visual.');
+  }
+}
+```
+
+---
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Capacity Planning" icon="chart-column">
+    Don't overload machines - leave buffer time for setups and changeovers
+  </Card>
+  
+  <Card title="Resource Validation" icon="clipboard-check">
+    Always verify tooling and material availability before scheduling
+  </Card>
+  
+  <Card title="Shift Balancing" icon="scale-balanced">
+    Distribute workload evenly between day and night shifts
+  </Card>
+  
+  <Card title="Machine Maintenance" icon="wrench">
+    Block maintenance windows in the schedule to prevent conflicts
+  </Card>
+  
+  <Card title="Operator Skills" icon="user-gear">
+    Assign jobs to operators with appropriate machine certifications
+  </Card>
+  
+  <Card title="Priority Sequencing" icon="arrow-down-1-9">
+    Schedule high-priority orders first, especially those near delivery dates
+  </Card>
+</CardGroup>
+
+---
+
+## Related Modules
+
+<CardGroup cols={2}>
+  <Card title="Order Management" icon="clipboard-list" href="/features/orders">
+    Pull pending OTs for scheduling
+  </Card>
+  <Card title="Production Tracking" icon="industry" href="/features/production">
+    Monitor execution of scheduled jobs
+  </Card>
+  <Card title="Inventory" icon="warehouse" href="/features/inventory">
+    Validate tooling availability for scheduled runs
+  </Card>
+  <Card title="Quality Control" icon="shield-check" href="/features/quality">
+    Review incidents that may affect schedule
+  </Card>
+</CardGroup>

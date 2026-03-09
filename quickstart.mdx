@@ -1,80 +1,501 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start Guide
+description: Get up and running with P.FLEX in your manufacturing plant
 ---
 
-## Get started in three steps
+## Installation
 
-Get your documentation site running locally and make your first customization.
+P.FLEX is a web-based application that can be deployed on-premises or in the cloud. Follow these steps to get started.
 
-### Step 1: Set up your local environment
+### Prerequisites
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+Before installation, ensure you have:
+
+- **Node.js 18+** installed on your server
+- **Modern web browser** (Chrome, Edge, Firefox)
+- **Network access** to your plant's machines (for IoT integration)
+- **User credentials** from your systems administrator
+
+<Steps>
+  <Step title="Clone and Install Dependencies">
+    Download the P.FLEX application and install required packages:
+
+    ```bash
+    # Install dependencies
+    npm install
+    ```
+
+    This installs Angular 19, RxJS, TailwindCSS, and all required libraries.
+  </Step>
+
+  <Step title="Configure Environment">
+    Set up your environment configuration in `.env.local`:
+
+    ```bash .env.local
+    # API Configuration
+    API_URL=http://localhost:3000
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    # Plant Configuration
+    PLANT_NAME="Planta Central - Zona Industrial"
+    SHIFT_1_START=06:00
+    SHIFT_2_START=18:00
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    # Optional: Gemini API for AI features
+    GEMINI_API_KEY=your_api_key_here
+    ```
 
-### Step 2: Deploy your changes
+    <Note>
+      The Gemini API key is optional and only required if you want to enable AI-powered production insights.
+    </Note>
+  </Step>
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+  <Step title="Start the Development Server">
+    Launch P.FLEX in development mode:
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    ```bash
+    npm run dev
+    ```
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    The application will be available at `http://localhost:4200`
+  </Step>
 
-### Step 3: Go live
+  <Step title="Build for Production">
+    When ready to deploy, create a production build:
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    ```bash
+    npm run build
+    ```
 
-## Next steps
+    Deploy the contents of the `dist/` folder to your web server.
+  </Step>
+</Steps>
 
-Now that you have your docs running, explore these key features:
+## First Login
+
+After installation, access the system through your web browser.
+
+### Login Screen
+
+The login interface provides secure access with shift selection:
+
+<img
+  className="rounded-lg border shadow-lg"
+  src="/images/login-screen.png"
+  alt="P.FLEX Login Screen"
+/>
+
+<Steps>
+  <Step title="Enter Your Credentials">
+    Use your assigned username (employee ID or username):
+
+    ```typescript src/features/access/login.component.ts
+    // Example login implementation
+    onLogin() {
+      if (this.username && this.selectedShift) {
+        this.state.login(this.username, this.selectedShift);
+        this.router.navigate(['/operator']);
+      }
+    }
+    ```
+
+    **Default Demo Accounts:**
+    - `admin` - Full system access (Systems role)
+    - `jefe` - Management dashboard (Jefatura role)
+    - `jperez` - Supervisor access
+    - `operario` - Operator interface
+  </Step>
+
+  <Step title="Select Your Shift">
+    Choose between Day Shift or Night Shift:
+
+    - **Turno Día**: 06:00 - 18:00
+    - **Turno Noche**: 18:00 - 06:00
+
+    <Info>
+      Shift times are configurable in the system settings by administrators.
+    </Info>
+  </Step>
+
+  <Step title="Authenticate">
+    Click **AUTENTICAR SISTEMA** to log in. The system will:
+    - Validate your credentials
+    - Log the access event to the audit trail
+    - Redirect you to your role-appropriate dashboard
+  </Step>
+</Steps>
+
+### Role-Based Dashboards
+
+Depending on your role, you'll see different interfaces:
 
 <CardGroup cols={2}>
+  <Card title="Operator View" icon="user-gear">
+    Simplified interface for machine operators to register production, report issues, and view assigned work orders.
+  </Card>
+  <Card title="Supervisor Dashboard" icon="chart-line">
+    Full control center with KPIs, machine status, active orders, and incident management.
+  </Card>
+</CardGroup>
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+## First Tasks
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+Let's perform common operations to familiarize yourself with P.FLEX.
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
+### 1. View the Dashboard
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
+The main dashboard provides a real-time overview of your plant:
 
+```typescript src/features/dashboard/dashboard.component.ts
+// Dashboard calculates live statistics
+get stats() {
+  const all = this.ordersService.ots;
+  let totalMeters = 0;
+  
+  all.forEach(ot => {
+    const mtl = parseFloat(String(ot.total_mtl || '0').replace(/,/g, ''));
+    if (!isNaN(mtl)) totalMeters += mtl;
+  });
+
+  return {
+    pending: all.filter(ot => ot.Estado_pedido === 'PENDIENTE').length,
+    totalMeters: Math.round(totalMeters)
+  };
+}
+```
+
+**Key Metrics Displayed:**
+- **OEE Global**: Overall Equipment Effectiveness (target: >80%)
+- **Active Work Orders**: Currently in production
+- **Active Incidents**: Quality or machine issues requiring attention
+- **Volume (meters)**: Total production output
+- **Energy Efficiency**: Power consumption vs. output
+- **Sync Queue**: Pending offline synchronizations
+
+### 2. Create a Work Order
+
+Add a new production order to the system:
+
+<Steps>
+  <Step title="Access Order Management">
+    Navigate to **Orders → OT List** from the sidebar
+  </Step>
+
+  <Step title="Click 'Nueva OT'">
+    This opens the work order creation form with fields:
+    - OT Number (unique identifier)
+    - Client / Razon Social
+    - Product Description
+    - Total Meters
+    - Machine Assignment
+    - Status (Pendiente, En Proceso, Finalizada)
+  </Step>
+
+  <Step title="Save the Order">
+    The order is immediately available for production scheduling:
+
+    ```typescript
+    handleOtSave(formData: Partial<OT>) {
+      const currentOts = this.ordersService.ots;
+      const existingIndex = currentOts.findIndex(
+        o => String(o.OT) === String(formData.OT)
+      );
+
+      let updatedOts = [...currentOts];
+      if (existingIndex !== -1) {
+        updatedOts[existingIndex] = { ...updatedOts[existingIndex], ...formData };
+      } else {
+        updatedOts.push(formData);
+      }
+
+      this.ordersService.updateOts(updatedOts);
+      alert(`OT ${formData.OT} guardada correctamente.`);
+    }
+    ```
+  </Step>
+</Steps>
+
+<Info>
+  Work orders can also be **imported in bulk** from Excel files. See the [Orders Management](/orders) guide for details.
+</Info>
+
+### 3. Schedule Production
+
+Assign work orders to machines using the visual Gantt chart:
+
+<Steps>
+  <Step title="Open Production Planning">
+    Navigate to **Planning → Schedule** to see the Gantt chart view
+  </Step>
+
+  <Step title="Select Area and Shift">
+    - Choose **Impresión**, **Troquelado**, or **Rebobinado**
+    - Select **Día** or **Noche** shift
+  </Step>
+
+  <Step title="Drag to Schedule">
+    Click **ASIGNAR** to create a new production slot:
+
+    ```typescript src/features/planning/schedule.component.ts
+    saveJob() {
+      if (this.tempStartDateTime) {
+        const d = new Date(this.tempStartDateTime);
+        this.currentJob.start = 
+          `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+      }
+      this.currentJob.duration = Math.round(this.tempDurationHours * 60);
+      
+      if (this.isEditing) {
+        this._jobs = this._jobs.map(j => 
+          j.id === this.currentJob.id ? this.currentJob : j
+        );
+      } else {
+        this.currentJob.id = Math.random().toString(36).substr(2, 9);
+        this._jobs.push(this.currentJob);
+      }
+      
+      this.showJobModal = false;
+    }
+    ```
+  </Step>
+
+  <Step title="Validate Resources">
+    P.FLEX checks tooling availability:
+    - Are required clichés in inventory?
+    - Is the die available and in good condition?
+    - Is substrate material in stock?
+  </Step>
+</Steps>
+
+### 4. Register Production Output
+
+Operators log production results:
+
+<Steps>
+  <Step title="Select Machine">
+    From the operator interface, choose your assigned machine (e.g., IMP-01, TRQ-03)
+  </Step>
+
+  <Step title="Enter Production Data">
+    Record:
+    - Meters produced
+    - Quality status (OK, Defects, Scrap)
+    - Downtime reasons (if any)
+    - Tooling condition (Cliché and Die status)
+  </Step>
+
+  <Step title="Submit Report">
+    Data is logged with timestamp and operator ID:
+
+    ```typescript
+    // Production report includes tooling status
+    const report = {
+      ot: '45001',
+      machine: 'IMP-01',
+      operator: 'Juan Martinez',
+      totalMeters: 15000,
+      activities: [
+        { type: 'Setup', startTime: '07:00', endTime: '08:30', meters: 0 },
+        { type: 'Impresión', startTime: '08:30', endTime: '11:00', meters: 6000 },
+        { type: 'Impresión', startTime: '11:15', endTime: '13:00', meters: 9000 }
+      ],
+      clise: { code: 'CL-45001-01', status: 'OK' },
+      die: { status: 'OK' }
+    };
+    ```
+  </Step>
+</Steps>
+
+### 5. Manage Inventory
+
+Track tooling and materials:
+
+<CardGroup cols={2}>
+  <Card title="Clichés (Printing Plates)" icon="print">
+    Upload Excel inventory with item codes, client, dimensions, location, and accumulated meters.
+  </Card>
+  <Card title="Dies (Troqueles)" icon="scissors">
+    Track series, dimensions, cavities, material, and wear status.
+  </Card>
+  <Card title="Finished Goods" icon="box">
+    Monitor completed production with OT number, rolls, millares, location, and quality status (Liberado, Cuarentena, Retenido).
+  </Card>
+  <Card title="Visual Warehouse Map" icon="map">
+    See rack locations with capacity indicators and quick item lookup.
+  </Card>
+</CardGroup>
+
+```typescript src/features/inventory/services/inventory.service.ts
+// Import and normalize inventory data
+normalizeCliseData(rawData: any[]): { valid: CliseItem[], conflicts: CliseItem[] } {
+  const normalized = this.excelService.normalizeData(rawData, this.CLISE_MAPPING);
+  const mapped: CliseItem[] = normalized.map(row => ({
+    id: Math.random().toString(36).substr(2, 9),
+    item: String(row.item || '').trim(),
+    ubicacion: String(row.ubicacion || '').trim(),
+    descripcion: String(row.descripcion || '').trim(),
+    cliente: String(row.cliente || '').trim(),
+    ancho: this.excelService.parseNumber(row.ancho),
+    avance: this.excelService.parseNumber(row.avance),
+    mtl_acum: this.excelService.parseNumber(row.mtl_acum)
+  }));
+
+  const valid = mapped.filter((i: CliseItem) => i.item && i.cliente);
+  const conflicts = mapped.filter((i: CliseItem) => !i.item || !i.cliente);
+  
+  return { valid, conflicts };
+}
+```
+
+### 6. Report an Incident
+
+When issues occur, log them in the quality system:
+
+<Steps>
+  <Step title="Click 'Falla' Button">
+    From the dashboard or quick actions menu
+  </Step>
+
+  <Step title="Fill Incident Details">
+    - Title and description
+    - Priority (Alta, Media, Baja)
+    - Type (Maquinaria, Material, Calidad, Otro)
+    - Related OT and machine
+  </Step>
+
+  <Step title="Assign CAPA Actions">
+    Add corrective and preventive actions:
+
+    ```typescript src/features/quality/services/quality.service.ts
+    addCapaAction(incidentId: string, action: Partial<CapaAction>) {
+      const newAction: CapaAction = {
+        id: Math.random().toString(36).substr(2, 9),
+        description: action.description || '',
+        type: action.type || 'Correctiva',
+        responsible: action.responsible || '',
+        deadline: action.deadline || new Date().toISOString().split('T')[0],
+        completed: false
+      };
+      
+      // Update incident status to 'Acción Correctiva'
+      this.audit.log(this.state.userName(), this.state.userRole(), 
+        'CALIDAD', 'Agregar Acción CAPA', 
+        `Acción ${newAction.type} agregada`);
+    }
+    ```
+  </Step>
+</Steps>
+
+## Common Workflows
+
+### Daily Shift Startup
+
+1. **Log in** with your credentials and select shift
+2. **Review dashboard** for pending orders and alerts
+3. **Check machine status** - update any machines in maintenance
+4. **Verify tooling** availability for scheduled jobs
+5. **Start production** and register outputs as you complete work
+
+### Excel Import Workflow
+
+Bulk data import from spreadsheets:
+
+```typescript
+// Handle Excel file upload
+handleImport(data: any[]) {
+  const currentData = this.ordersService.ots;
+  const importedData = data;
+  let updatedData = [...currentData];
+
+  importedData.forEach((row: any) => {
+    if (!row.OT) return;
+    const rowOtStr = String(row.OT).trim();
+    const index = updatedData.findIndex(
+      item => String(item.OT).trim() === rowOtStr
+    );
+    
+    if (index !== -1) {
+      // Update existing
+      const currentStatus = updatedData[index].Estado_pedido;
+      updatedData[index] = { ...updatedData[index], ...row };
+      if (currentStatus) updatedData[index].Estado_pedido = currentStatus;
+    } else {
+      // Add new
+      updatedData.push({ ...row, Estado_pedido: 'PENDIENTE' });
+    }
+  });
+  
+  this.ordersService.updateOts(updatedData);
+  alert(`Importación completada. ${importedData.length} registros procesados.`);
+}
+```
+
+<Info>
+  **Supported Formats**: Excel (.xlsx), CSV. The system intelligently maps column headers to internal fields.
+</Info>
+
+## Export and Reporting
+
+P.FLEX includes powerful export capabilities:
+
+<CardGroup cols={2}>
+  <Card title="PDF Export" icon="file-pdf">
+    Generate visual snapshots of dashboards, schedules, and reports with `html2canvas` and `jsPDF`.
+  </Card>
+  <Card title="Excel Export" icon="file-excel">
+    Export tabular data (orders, inventory, production logs) to Excel for further analysis.
+  </Card>
+</CardGroup>
+
+```typescript
+// Export dashboard to Excel
+exportToExcel() {
+  const wb = XLSX.utils.book_new();
+  const dateStr = new Date().toISOString().split('T')[0];
+
+  // Sheet 1: KPIs
+  const statsData = [
+    ['REPORTE GENERAL DE PLANTA', dateStr],
+    [''],
+    ['METRICAS PRINCIPALES'],
+    ['OEE Global', '82.4%'],
+    ['OTs Activas', this.activeProduction.length],
+    ['Metros Totales', '45.2k']
+  ];
+  const wsStats = XLSX.utils.aoa_to_sheet(statsData);
+  XLSX.utils.book_append_sheet(wb, wsStats, "KPIs");
+
+  // Sheet 2: Active Orders
+  const activeOTsData = this.activeProduction.map(ot => ({
+    OT: ot.OT,
+    Cliente: ot['Razon Social'],
+    Producto: ot.descripcion,
+    Maquina: ot.maquina,
+    Metros: ot.total_mtl
+  }));
+  const wsOTs = XLSX.utils.json_to_sheet(activeOTsData);
+  XLSX.utils.book_append_sheet(wb, wsOTs, "Producción");
+
+  XLSX.writeFile(wb, `Dashboard_Data_${dateStr}.xlsx`);
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Explore Key Features" icon="star" href="/key-features">
+    Learn about all 10+ modules and advanced capabilities
+  </Card>
+  <Card title="User Management" icon="users" href="/admin/users">
+    Configure roles, permissions, and plant-specific settings
+  </Card>
+  <Card title="Machine Configuration" icon="gear" href="/admin/machines">
+    Set up your production lines and equipment registry
+  </Card>
+  <Card title="Quality System" icon="clipboard-check" href="/quality">
+    Implement CAPA and incident management workflows
+  </Card>
 </CardGroup>
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  **Getting Stuck?** Check the detailed feature guides or consult your systems administrator for plant-specific configurations.
 </Note>
