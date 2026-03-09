@@ -1,0 +1,137 @@
+{
+  "projectType": "saas",
+  "projectName": "P.FLEX",
+  "projectDescription": "Industrial B2B ERP system for production control, traceability, and auditing in flexographic printing plants.",
+  "theme": "aspen",
+  "primaryColor": "#6acfdf",
+  "lightColor": "#e8f3f4",
+  "darkColor": "#0e0e0e",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "key-features"
+            ]
+          },
+          {
+            "group": "Getting Started",
+            "pages": [
+              "getting-started/installation",
+              "getting-started/login",
+              "getting-started/user-roles",
+              "getting-started/navigation"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/dashboard",
+              "features/orders",
+              "features/production",
+              "features/inventory",
+              "features/quality",
+              "features/planning"
+            ]
+          },
+          {
+            "group": "Production Modules",
+            "pages": [
+              "production/print",
+              "production/diecut",
+              "production/rewind",
+              "production/packaging",
+              "production/operator-mode"
+            ]
+          },
+          {
+            "group": "Inventory Management",
+            "pages": [
+              "inventory/overview",
+              "inventory/clise-management",
+              "inventory/die-management",
+              "inventory/stock-control",
+              "inventory/rack-layout"
+            ]
+          },
+          {
+            "group": "Quality & Analytics",
+            "pages": [
+              "quality/incidents",
+              "quality/tracking",
+              "analytics/reports",
+              "analytics/kpis"
+            ]
+          },
+          {
+            "group": "Administration",
+            "pages": [
+              "admin/users",
+              "admin/roles",
+              "admin/machines",
+              "admin/configuration",
+              "admin/audit-logs"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Services",
+            "pages": [
+              "api/state-service",
+              "api/orders-service",
+              "api/inventory-service",
+              "api/admin-service",
+              "api/audit-service"
+            ]
+          },
+          {
+            "group": "Data Models",
+            "pages": [
+              "api/models/orders",
+              "api/models/inventory",
+              "api/models/admin",
+              "api/models/quality"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Real-time production tracking across print, diecut, rewind, and packaging operations",
+    "Comprehensive inventory management for clichés, dies, ink, and finished goods",
+    "Order management with work order (OT) tracking from intake to completion",
+    "Quality control with incident reporting and tooling status monitoring",
+    "Production planning and scheduling with visual calendar interface",
+    "Multi-role support (Admin, Manager, Operator) with role-based permissions",
+    "Audit logging for compliance and traceability",
+    "Analytics dashboard with KPIs and production metrics",
+    "Operator-friendly full-screen production reporting mode",
+    "Excel import/export for data integration"
+  ],
+  "publicApiSurface": [
+    "StateService - Global application state management",
+    "OrdersService - Work order (OT) CRUD operations",
+    "InventoryService - Cliché and die management",
+    "AdminService - User, role, and machine administration",
+    "AuditService - Audit log creation and retrieval",
+    "QualityService - Incident reporting and tracking",
+    "ExcelService - Excel import/export utilities",
+    "OT interface - Work order data model",
+    "CliseItem interface - Cliché inventory model",
+    "DieItem interface - Die inventory model",
+    "StockItem interface - Finished goods inventory model",
+    "AppUser interface - User account model",
+    "Machine interface - Production machine model",
+    "AuditLog interface - Audit trail model"
+  ]
+}
