@@ -1,0 +1,276 @@
+---
+title: "QualityService"
+description: "Service for managing quality incidents, CAPA actions, and compliance tracking"
+icon: "clipboard-check"
+---
+
+## Overview
+
+`QualityService` manages quality incidents, CAPA (Corrective and Preventive Action) workflows, and compliance tracking throughout the production process.
+
+From `src/features/quality/services/quality.service.ts`
+
+```typescript
+@Injectable({ providedIn: 'root' })
+export class QualityService {
+  private _incidents = new BehaviorSubject<Incident[]>(initialData);
+  
+  get incidents(): Incident[];
+  get activeIncidents(): Incident[];
+  get closedIncidents(): Incident[];
+  
+  addIncident(incident: Partial<Incident>): void;
+  updateIncident(updated: Incident): void;
+  addCapaAction(incidentId: string, action: Partial<CapaAction>): void;
+  toggleActionCompletion(incidentId: string, actionId: string): void;
+  closeIncident(incidentId: string): void;
+}
+```
+
+## Properties
+
+### incidents
+
+```typescript
+get incidents(): Incident[]
+```
+
+Returns all incidents (active and closed).
+
+**Example:**
+```typescript
+const allIncidents = this.qualityService.incidents;
+console.log(`Total incidents: ${allIncidents.length}`);
+```
+
+### activeIncidents
+
+```typescript
+get activeIncidents(): Incident[]
+```
+
+Returns only incidents that are not in "Cerrada" (Closed) status.
+
+**Filters:** `status !== 'Cerrada'`
+
+**Example:**
+```typescript
+const active = this.qualityService.activeIncidents;
+console.log(`Active incidents requiring attention: ${active.length}`);
+```
+
+### closedIncidents
+
+```typescript
+get closedIncidents(): Incident[]
+```
+
+Returns incidents with status "Cerrada" (Closed).
+
+**Example:**
+```typescript
+const closed = this.qualityService.closedIncidents;
+// Display in history view
+```
+
+## Methods
+
+### addIncident()
+
+Creates a new quality incident with automatic code generation and audit logging.
+
+<ParamField path="incident" type="Partial<Incident>" required>
+  Incident data with at least title, description, type, and priority
+</ParamField>
+
+**Auto-generated fields:**
+- `id`: Random 9-character alphanumeric
+- `code`: Format `INC-2024-XXX` (3-digit random number)
+- `status`: Automatically set to "Abierta" (Open)
+- `reportedAt`: Current timestamp
+- `actions`: Empty array
+
+**Example:**
+```typescript
+// From incidents.component.ts:142-152
+this.qualityService.addIncident({
+  title: this.newIncident.title,
+  description: this.newIncident.description,
+  priority: this.newIncident.priority as IncidentPriority,
+  type: this.newIncident.type as IncidentType,
+  otRef: this.newIncident.otRef,
+  machineRef: this.newIncident.machineRef,
+  reportedBy: this.state.userName(),
+  assignedTo: this.newIncident.assignedTo
+});
+```
+
+**Audit Log:** Records "Reportar Incidencia" action with incident code and title.
+
+### updateIncident()
+
+Updates an existing incident with new data.
+
+<ParamField path="updated" type="Incident" required>
+  Complete incident object with modified fields
+</ParamField>
+
+**Example:**
+```typescript
+const incident = this.qualityService.incidents.find(i => i.id === selectedId);
+if (incident) {
+  this.qualityService.updateIncident({
+    ...incident,
+    status: 'En Análisis',
+    rootCause: 'Identified root cause details...'
+  });
+}
+```
+
+**Audit Log:** Records "Actualizar Incidencia" action.
+
+### addCapaAction()
+
+Adds a Corrective or Preventive Action to an incident.
+
+<ParamField path="incidentId" type="string" required>
+  The ID of the incident to add the action to
+</ParamField>
+
+<ParamField path="action" type="Partial<CapaAction>" required>
+  CAPA action details (description, type, responsible, deadline)
+</ParamField>
+
+**Auto-generated fields:**
+- `id`: Random 9-character alphanumeric
+- `completed`: Set to false initially
+
+**Status transition:** If incident is "Abierta", automatically changes to "Acción Correctiva"
+
+**Example:**
+```typescript
+// From incidents.component.ts:182-192
+this.qualityService.addCapaAction(this.selectedIncident.id, {
+  description: this.newAction.description,
+  type: this.newAction.type as 'Correctiva' | 'Preventiva',
+  responsible: this.newAction.responsible,
+  deadline: this.newAction.deadline
+});
+```
+
+**Audit Log:** Records "Agregar Acción CAPA" with action type and incident code.
+
+### toggleActionCompletion()
+
+Marks a CAPA action as completed or reopens it.
+
+<ParamField path="incidentId" type="string" required>
+  The ID of the incident containing the action
+</ParamField>
+
+<ParamField path="actionId" type="string" required>
+  The ID of the action to toggle
+</ParamField>
+
+**Example:**
+```typescript
+// Toggle completion checkbox
+this.qualityService.toggleActionCompletion(incident.id, action.id);
+```
+
+**Audit Log:** Records "Completar Acción" with incident code.
+
+### closeIncident()
+
+Closes an incident by setting its status to "Cerrada".
+
+<ParamField path="incidentId" type="string" required>
+  The ID of the incident to close
+</ParamField>
+
+**Best Practice:** Before closing, ensure:
+- Root cause is documented
+- All CAPA actions are completed
+- Verification is performed
+
+**Example:**
+```typescript
+// From incidents.component.ts:202-207
+closeIncidentAction(incident: Incident) {
+  const pendingActions = incident.actions.filter(a => !a.completed);
+  if (pendingActions.length > 0) {
+    if (!confirm('Hay acciones pendientes. ¿Desea cerrar de todos modos?')) return;
+  }
+  this.qualityService.closeIncident(incident.id);
+  this.selectedIncident = null;
+}
+```
+
+**Audit Log:** Records "Cerrar Incidencia" with incident code.
+
+## Usage Example
+
+Complete incident lifecycle management:
+
+```typescript
+import { Component, inject } from '@angular/core';
+import { QualityService } from './services/quality.service';
+
+@Component({
+  selector: 'app-quality-dashboard',
+  template: `
+    <div class="incidents-dashboard">
+      <div class="stats">
+        <div class="stat-card">
+          <h3>Active Incidents</h3>
+          <p>{{ qualityService.activeIncidents.length }}</p>
+        </div>
+        <div class="stat-card critical">
+          <h3>High Priority</h3>
+          <p>{{ highPriorityCount }}</p>
+        </div>
+      </div>
+      
+      <div class="incident-list">
+        <div *ngFor="let incident of qualityService.activeIncidents">
+          <h4>{{ incident.code }} - {{ incident.title }}</h4>
+          <span [class]="'priority-' + incident.priority">{{ incident.priority }}</span>
+          <p>{{ incident.description }}</p>
+          <div class="actions">
+            <span>{{ incident.actions.length }} CAPA actions</span>
+            <span>{{ completedActionsCount(incident) }} completed</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `
+})
+export class QualityDashboardComponent {
+  qualityService = inject(QualityService);
+  
+  get highPriorityCount(): number {
+    return this.qualityService.activeIncidents.filter(i => i.priority === 'Alta').length;
+  }
+  
+  completedActionsCount(incident: Incident): number {
+    return incident.actions.filter(a => a.completed).length;
+  }
+}
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Incident Data Model" icon="file-contract" href="/api/models/quality">
+    Incident and CapaAction interfaces
+  </Card>
+  <Card title="Quality Incidents" icon="triangle-exclamation" href="/quality/incidents">
+    User guide for incident reporting
+  </Card>
+  <Card title="Audit Service" icon="clipboard-list" href="/api/audit-service">
+    Compliance logging integration
+  </Card>
+  <Card title="State Service" icon="database" href="/api/state-service">
+    User context for incident reporting
+  </Card>
+</CardGroup>

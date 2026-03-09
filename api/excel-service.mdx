@@ -1,0 +1,332 @@
+---
+title: "ExcelService"
+description: "Service for reading, parsing, and normalizing Excel/CSV files for data import"
+icon: "file-excel"
+---
+
+## Overview
+
+`ExcelService` provides utilities for importing Excel and CSV files into P.FLEX, with intelligent column mapping and data normalization to handle variations in uploaded file formats.
+
+From `src/services/excel.service.ts`
+
+```typescript
+@Injectable({ providedIn: 'root' })
+export class ExcelService {
+  readExcel(file: File): Promise<any[]>;
+  normalizeData(rawData: any[], mapping: { [key: string]: string[] }): any[];
+  normalizeString(str: string): string;
+  parseNumber(val: any): number | null;
+}
+```
+
+## Methods
+
+### readExcel()
+
+Reads an Excel (.xlsx, .xls) or CSV file and returns the raw JSON data from the first sheet.
+
+<ParamField path="file" type="File" required>
+  The file object from an HTML file input element
+</ParamField>
+
+**Returns:** `Promise<any[]>` - Array of objects where each object represents a row, with column headers as keys
+
+**Dependencies:** Uses the `xlsx` library (v0.18.5)
+
+**Error handling:**
+- Rejects if XLSX library is not loaded
+- Rejects if file contains no sheets
+- Rejects if file is corrupted or unreadable
+
+**Example:**
+```typescript
+// From inventory.service.ts:102-120
+async handleExcelImport(file: File, type: 'clise' | 'die' | 'stock') {
+  try {
+    const rawData = await this.excelService.readExcel(file);
+    
+    if (!rawData || rawData.length === 0) {
+      alert('El archivo está vacío o no contiene datos válidos.');
+      return;
+    }
+    
+    console.log('Raw Excel Data:', rawData);
+    
+    // Continue with normalization...
+  } catch (error) {
+    console.error('Error reading Excel:', error);
+    alert('Error al leer el archivo. Verifique que sea un archivo Excel válido.');
+  }
+}
+```
+
+**File reading process:**
+1. Uses `FileReader.readAsArrayBuffer()` to read file
+2. Parses with `XLSX.read()` with `type: 'array'`
+3. Extracts first sheet name from `workbook.SheetNames[0]`
+4. Converts sheet to JSON with `sheet_to_json(worksheet, { defval: "" })`
+5. Returns array of row objects
+
+### normalizeData()
+
+Normalizes column names from uploaded Excel files to match P.FLEX's internal field names, handling variations and typos.
+
+<ParamField path="rawData" type="any[]" required>
+  Array of objects returned from readExcel()
+</ParamField>
+
+<ParamField path="mapping" type="{ [key: string]: string[] }" required>
+  Mapping object where keys are target field names and values are arrays of possible column name variations
+</ParamField>
+
+**Returns:** `any[]` - Array of normalized objects with standardized field names
+
+**Normalization rules:**
+- Column names are converted to lowercase
+- Accents and diacritics are removed (e.g., "Descripción" → "descripcion")
+- Special characters are stripped
+- Whitespace is trimmed
+
+**Example:**
+```typescript
+// From inventory.service.ts:123-150
+const cliseMapping = {
+  item: ['item', 'codigo', 'code', 'cliche'],
+  descripcion: ['descripcion', 'description', 'desc', 'producto'],
+  cliente: ['cliente', 'client', 'razonsocial', 'razon social'],
+  ubicacion: ['ubicacion', 'location', 'rack', 'posicion'],
+  ancho: ['ancho', 'width', 'w'],
+  avance: ['avance', 'advance', 'repeat'],
+  col: ['col', 'colores', 'colors', 'c'],
+  rep: ['rep', 'repeticiones', 'repeats'],
+  n_clises: ['n_clises', 'nclises', 'cantidad', 'qty'],
+  espesor: ['espesor', 'thickness', 'grosor'],
+  obs: ['obs', 'observaciones', 'notes', 'comments'],
+  maq: ['maq', 'maquina', 'machine'],
+  colores: ['colores', 'colors', 'tintas'],
+  mtl_acum: ['mtl_acum', 'metrosacumulados', 'meters']
+};
+
+const normalized = this.excelService.normalizeData(rawData, cliseMapping);
+console.log('Normalized:', normalized);
+```
+
+**Flexible matching:** If a user uploads a file with columns "Cliente", "Client", or "Razon Social", all will be mapped to the "cliente" field.
+
+### normalizeString()
+
+Helper method to clean and normalize strings for comparison.
+
+<ParamField path="str" type="string" required>
+  String to normalize
+</ParamField>
+
+**Returns:** `string` - Lowercase, accent-free, alphanumeric-only string
+
+**Transformations:**
+1. Convert to lowercase
+2. Normalize unicode (NFD) to separate base characters from diacritics
+3. Remove diacritical marks (U+0300-U+036f range)
+4. Remove all non-alphanumeric characters
+5. Trim whitespace
+
+**Example:**
+```typescript
+this.excelService.normalizeString('Descripción del Producto #123');
+// Returns: "descripciondelproducto123"
+
+this.excelService.normalizeString('Razón Social');
+// Returns: "razonsocial"
+```
+
+**Use case:** Column header matching in `normalizeData()`
+
+### parseNumber()
+
+Safely parses numeric values from Excel data that may contain currency symbols, thousands separators, or placeholder characters.
+
+<ParamField path="val" type="any" required>
+  Value to parse (can be string, number, null, or undefined)
+</ParamField>
+
+**Returns:** `number | null` - Parsed number or null if invalid
+
+**Handling rules:**
+- `null`, `undefined`, empty string → returns `null`
+- `"-"` or `"---"` (common Excel placeholders) → returns `0`
+- Strips currency symbols (`$`, `€`, etc.)
+- Removes thousands separators (`,`)
+- Preserves decimal points and negative signs
+- Returns `null` for unparseable values
+
+**Example:**
+```typescript
+// From inventory.service.ts parsing numeric fields
+item.ancho = this.excelService.parseNumber(row.ancho);
+item.avance = this.excelService.parseNumber(row.avance);
+item.col = this.excelService.parseNumber(row.col);
+item.rep = this.excelService.parseNumber(row.rep);
+item.n_clises = this.excelService.parseNumber(row.n_clises);
+item.mtl_acum = this.excelService.parseNumber(row.mtl_acum);
+
+// Handles various formats:
+this.excelService.parseNumber('1,200.50');  // → 1200.50
+this.excelService.parseNumber('$ 500');     // → 500
+this.excelService.parseNumber('-');         // → 0
+this.excelService.parseNumber('N/A');       // → null
+this.excelService.parseNumber(42);          // → 42
+```
+
+## Complete Import Workflow
+
+Full example of importing and processing Excel data:
+
+```typescript
+import { Component, inject } from '@angular/core';
+import { ExcelService } from './services/excel.service';
+
+@Component({
+  selector: 'app-data-import',
+  template: `
+    <div class="import-section">
+      <input type="file" 
+             accept=".xlsx,.xls,.csv" 
+             (change)="onFileSelected($event)">
+      <button (click)="processImport()">Import Data</button>
+    </div>
+  `
+})
+export class DataImportComponent {
+  excelService = inject(ExcelService);
+  selectedFile: File | null = null;
+  
+  onFileSelected(event: any) {
+    this.selectedFile = event.target.files[0];
+  }
+  
+  async processImport() {
+    if (!this.selectedFile) return;
+    
+    try {
+      // Step 1: Read Excel file
+      const rawData = await this.excelService.readExcel(this.selectedFile);
+      
+      // Step 2: Define column mapping
+      const mapping = {
+        ot: ['ot', 'orden', 'ordentrabajo', 'worknumber'],
+        client: ['cliente', 'client', 'customer', 'razonsocial'],
+        product: ['producto', 'product', 'descripcion', 'item'],
+        quantity: ['cantidad', 'qty', 'cantidad', 'units'],
+        status: ['estado', 'status', 'state']
+      };
+      
+      // Step 3: Normalize data
+      const normalized = this.excelService.normalizeData(rawData, mapping);
+      
+      // Step 4: Parse and validate
+      const processed = normalized.map(row => ({
+        ot: row.ot || '',
+        client: row.client || 'Unknown',
+        product: row.product || '',
+        quantity: this.excelService.parseNumber(row.quantity) || 0,
+        status: this.normalizeStatus(row.status)
+      }));
+      
+      // Step 5: Save to system
+      console.log('Processed records:', processed.length);
+      // Call appropriate service to save data
+      
+    } catch (error) {
+      console.error('Import failed:', error);
+      alert('Error during import. Please check the file format.');
+    }
+  }
+  
+  normalizeStatus(status: any): string {
+    const normalized = this.excelService.normalizeString(String(status || ''));
+    if (normalized.includes('pend')) return 'Pendiente';
+    if (normalized.includes('proc')) return 'En Proceso';
+    if (normalized.includes('comp') || normalized.includes('fin')) return 'Finalizada';
+    return 'Pendiente';
+  }
+}
+```
+
+## Integration Examples
+
+### Inventory Import
+
+```typescript
+// inventory.service.ts:102-180
+async handleExcelImport(file: File, type: 'clise' | 'die' | 'stock') {
+  const rawData = await this.excelService.readExcel(file);
+  
+  if (type === 'clise') {
+    const normalized = this.excelService.normalizeData(rawData, cliseMapping);
+    
+    // Detect conflicts with existing data
+    const conflicts = normalized.filter(row => 
+      this.clises().some(existing => existing.item === row.item)
+    );
+    
+    // Process non-conflicting items
+    const newItems = normalized.filter(row =>
+      !this.clises().some(existing => existing.item === row.item)
+    );
+    
+    // Map to CliseItem interface
+    const items: CliseItem[] = newItems.map(row => ({
+      id: Math.random().toString(36).substr(2, 9),
+      item: row.item || '',
+      ubicacion: row.ubicacion || '',
+      descripcion: row.descripcion || '',
+      cliente: row.cliente || '',
+      ancho: this.excelService.parseNumber(row.ancho),
+      avance: this.excelService.parseNumber(row.avance),
+      // ... other fields
+    }));
+    
+    this.clises.update(current => [...current, ...items]);
+  }
+}
+```
+
+### Order Import
+
+```typescript
+// orders.service.ts:45-65
+async importFromExcel(file: File) {
+  const rawData = await this.excelService.readExcel(file);
+  
+  const mapping = {
+    OT: ['ot', 'orden', 'ordentrabajo'],
+    'Razon Social': ['cliente', 'client', 'razonsocial'],
+    descripcion: ['descripcion', 'producto', 'item'],
+    'CANT PED': ['cantidad', 'cantped', 'qty']
+  };
+  
+  const normalized = this.excelService.normalizeData(rawData, mapping);
+  
+  // Save to internal database
+  this.internalDb.set(normalized);
+  console.log(`Imported ${normalized.length} orders`);
+}
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Inventory Service" icon="warehouse" href="/api/inventory-service">
+    Uses ExcelService for cliché and die imports
+  </Card>
+  <Card title="Orders Service" icon="clipboard-list" href="/api/orders-service">
+    Work order Excel import functionality
+  </Card>
+  <Card title="Stock Control" icon="boxes-stacked" href="/inventory/stock-control">
+    Finished goods Excel import
+  </Card>
+  <Card title="Clisé Management" icon="palette" href="/inventory/clise-management">
+    Printing plate import with conflict detection
+  </Card>
+</CardGroup>

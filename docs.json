@@ -107,7 +107,9 @@
               "api/orders-service",
               "api/inventory-service",
               "api/admin-service",
-              "api/audit-service"
+              "api/audit-service",
+              "api/quality-service",
+              "api/excel-service"
             ]
           },
           {
